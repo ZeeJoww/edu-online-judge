@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>课堂大屏 - TGBOJ</title>
+<style>
+  body { margin:0; background:#0b1120; color:#e2e8f0; font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif; }
+  #wrap { max-width:1560px; margin:0 auto; padding:20px 28px; }
+  #head { display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; position:relative; }
+  #title { font-size:34px; font-weight:800; letter-spacing:1px; }
+  #headRight { position:relative; display:flex; flex-direction:column; align-items:flex-end; gap:4px; }
+  #clock { font-size:34px; color:#e2e8f0; font-variant-numeric:tabular-nums; cursor:pointer; user-select:none; padding:4px 14px; border:2px solid transparent; border-radius:12px; transition:color .2s,border-color .2s,background .2s; }
+  #clock:hover { color:#60a5fa; border-color:#334155; background:#1e293b; }
+  #clock.alarm { color:#fbbf24; }
+  #clock.alarm:hover { color:#fbbf24; border-color:#b45309; }
+  #alarmInfo { min-height:20px; font-size:16px; color:#fbbf24; font-variant-numeric:tabular-nums; display:flex; align-items:center; gap:8px; }
+  #alarmInfo .dot { width:8px; height:8px; border-radius:50%; background:#fbbf24; animation:alarmBlink 1s steps(2,start) infinite; }
+  @keyframes alarmBlink { 50% { opacity:.15; } }
+  #alarmPanel { position:absolute; top:calc(100% + 10px); right:0; z-index:60; width:260px; background:#1e293b; border:1px solid #475569; border-radius:14px; padding:16px; display:none; box-shadow:0 14px 40px rgba(0,0,0,.45); }
+  #alarmPanel.open { display:block; }
+  #alarmPanel .ap-title { font-size:17px; font-weight:700; margin-bottom:12px; }
+  #alarmPanel .ap-time { display:flex; align-items:center; gap:6px; }
+  #alarmPanel .ap-time input { flex:1; width:0; min-width:0; box-sizing:border-box; background:#0f172a; color:#e2e8f0; border:1px solid #475569; border-radius:10px; padding:10px 4px; font-size:26px; font-variant-numeric:tabular-nums; font-family:inherit; text-align:center; }
+  #alarmPanel .ap-time input:focus { border-color:#60a5fa; outline:none; }
+  #alarmPanel .ap-time .ap-colon { color:#64748b; font-size:24px; font-weight:700; }
+  #alarmPanel input::placeholder { color:#64748b; font-size:15px; }
+  #alarmPanel .ap-btns { display:flex; gap:8px; margin-top:12px; }
+  #alarmPanel button { flex:1; border:none; border-radius:9px; padding:8px 0; font-size:14px; cursor:pointer; color:#e2e8f0; }
+  #alarmPanel .ap-set { background:#2563eb; font-weight:700; }
+  #alarmPanel .ap-clear { background:#334155; }
+  #alarmPanel .ap-close { flex:0 0 auto; background:transparent; padding:8px 10px; color:#94a3b8; }
+  #alarmPanel .ap-hint { margin-top:8px; font-size:13px; color:#94a3b8; min-height:16px; }
+  #ringBanner { position:fixed; top:0; left:0; right:0; z-index:200; display:none; align-items:center; justify-content:center; gap:18px; padding:16px 24px; background:#dc2626; color:#fff; font-size:30px; font-weight:800; animation:ringFlash 1s ease-in-out infinite; }
+  #ringBanner.show { display:flex; }
+  #ringBanner button { background:#fff; color:#dc2626; border:none; border-radius:10px; padding:8px 22px; font-size:18px; font-weight:700; cursor:pointer; }
+  @keyframes ringFlash { 50% { background:#991b1b; } }
+  /* 实时提交流：横向长条，纵向排列，新的在上 */
+  #feed { display:flex; flex-direction:column; gap:8px; margin-bottom:20px; min-height:52px; }
+  #feed .item { display:flex; align-items:center; gap:12px; background:#1e293b; border:2px solid #334155; border-radius:12px; padding:12px 18px; font-size:21px; cursor:pointer; }
+  #feed .item:hover { border-color:#64748b; }
+  #feed .item .who { font-weight:700; }
+  #feed .item .pt { color:#94a3b8; }
+  #feed .item .st { font-weight:800; }
+  #feed .item.run { border-color:#3b82f6; }
+  #feed .item.run .st { color:#60a5fa; }
+  #feed .item.done-ac { border-color:#22c55e; }
+  #feed .item.done-ac .st { color:#22c55e; }
+  #feed .item.done-bad { border-color:#ef4444; }
+  #feed .item.done-bad .st { color:#f87171; }
+  #feed .item { transition: opacity .45s ease; }
+  #feed .item.fade-in { animation: fadeIn .45s ease; }
+  #feed .item.fade-out { opacity: 0; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+  .spinner { display:inline-block; width:18px; height:18px; border:3px solid rgba(96,165,250,.3); border-top-color:#60a5fa; border-radius:50%; animation:spin .8s linear infinite; vertical-align:-3px; margin-right:8px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  /* 学生求助（保持显示，直到教师标记已处理） */
+  #helpSection { margin-bottom:20px; display:flex; flex-direction:column; gap:12px; }
+  #helpSection .hcard { background:#1e293b; border:2px solid #f59e0b; border-radius:14px; padding:14px 18px; }
+  #helpSection .hcard .hhead { font-size:20px; font-weight:800; color:#fbbf24; margin-bottom:6px; }
+  #helpSection .hcard .hmeta { font-size:16px; color:#94a3b8; margin-bottom:8px; }
+  #helpSection .hcard pre { background:#0f172a; border:1px solid #475569; border-radius:8px; padding:12px; max-height:36vh; overflow:auto; font-family:'Monaco','Menlo','Consolas','Courier New',monospace; font-size:13px; line-height:1.5; white-space:pre-wrap; margin:0; }
+  /* 题目网格 */
+  #grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:16px; }
+  .card { background:#1e293b; border:2px solid #334155; border-radius:14px; padding:18px 20px; transition:border-color .4s; }
+  .card.ac { border-color:#22c55e; }
+  .card.must { border-color:#f59e0b; }
+  .card .ptitle { font-size:23px; font-weight:700; margin-bottom:8px; line-height:1.35; }
+  .card .pid { font-size:15px; color:#64748b; margin-left:6px; font-weight:500; }
+  .card .star { color:#f59e0b; font-size:18px; }
+  .card .stats { font-size:20px; color:#94a3b8; }
+  .card .stats .ac { color:#22c55e; font-weight:800; }
+  .card .stats .judging { color:#f59e0b; }
+  .bar { height:14px; background:#0f172a; border-radius:7px; margin-top:12px; overflow:hidden; }
+  .bar .fill { height:100%; background:#22c55e; transition:width .6s ease; border-radius:7px; }
+  /* 详情弹窗（深色） */
+  #subMask { position:fixed; inset:0; background:rgba(0,0,0,.62); display:none; align-items:center; justify-content:center; z-index:100; }
+  #subMask.open { display:flex; }
+  #subMask .box { background:#1e293b; color:#e2e8f0; border:1px solid #334155; border-radius:14px; width:min(920px,94vw); max-height:88vh; overflow:auto; padding:22px; }
+  #subMask .pts { display:flex; flex-wrap:wrap; gap:6px; margin:10px 0; }
+  #subMask .pt { width:44px; height:34px; border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; }
+  #subMask .pt.ac { background:#22c55e; }
+  #subMask .pt.bad { background:#ef4444; }
+  #subMask pre { background:#0f172a; border:1px solid #334155; border-radius:8px; padding:14px; overflow:auto; max-height:46vh; font-family:'Monaco','Menlo','Consolas','Courier New',monospace; font-size:13px; line-height:1.5; white-space:pre-wrap; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="head">
+    <span id="title">🏆 课堂大屏</span>
+    <div id="headRight">
+      <div id="clock" title="点击设置定时响铃"></div>
+      <div id="alarmInfo"></div>
+      <div id="alarmPanel">
+        <div class="ap-title">⏰ 定时响铃</div>
+        <div class="ap-time">
+          <input type="text" id="alarmHH" inputmode="numeric" maxlength="2" placeholder="HH" autocomplete="off" spellcheck="false">
+          <span class="ap-colon">:</span>
+          <input type="text" id="alarmMM" inputmode="numeric" maxlength="2" placeholder="MM" autocomplete="off" spellcheck="false">
+          <span class="ap-colon">:</span>
+          <input type="text" id="alarmSS" inputmode="numeric" maxlength="2" placeholder="SS" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="ap-btns">
+          <button type="button" class="ap-set" id="alarmSetBtn">设置</button>
+          <button type="button" class="ap-clear" id="alarmClearBtn">清除</button>
+          <button type="button" class="ap-close" id="alarmCloseBtn">✕</button>
+        </div>
+        <div class="ap-hint" id="alarmHint"></div>
+      </div>
+    </div>
+  </div>
+  <div id="helpSection" style="display:none;"></div>
+  <div id="feed"></div>
+  <div id="grid"></div>
+</div>
+<div id="ringBanner"><span>⏰ 时间到 <span id="ringTime"></span></span><button type="button" id="ringStop">停止响铃</button></div>
+<div id="subMask"><div class="box" id="subBox"></div></div>
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+let lastData = null;
+const DONE_HOLD_MS = 20000;   // 完成的提交展示 20 秒后自动消失
+const RECENT_WINDOW = 20000;  // 首次加载只显示近 20 秒内提交的
+let shown = new Map();        // id -> { data, doneAt }
+let seenAll = new Set();      // 已出现过的提交 id
+let initialized = false;
+
+// ---- 时钟与定时响铃：点击右上角时间设置，到点响铃（localStorage 持久化，刷新大屏不丢）----
+let alarmAt = 0;              // 目标时间戳（0 = 未设置）
+let ringing = false;
+let ringHideTimer = null;     // 「时间到」横幅 3 秒后自动隐藏
+let audioCtx = null;
+let toneNodes = [];           // 正在发声的振荡器（提前停止响铃时立刻静音）
+try {
+  const saved = parseInt(localStorage.getItem('tgboj_board_alarm') || '0', 10);
+  if (Number.isFinite(saved) && saved > Date.now()) alarmAt = saved;
+  else localStorage.removeItem('tgboj_board_alarm');
+} catch (e) { /* localStorage 不可用时忽略 */ }
+const pad2 = (n) => String(n).padStart(2, '0');
+const timeStr = (d) => `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
+function fmtRemain(ms) {
+  const s = Math.max(0, Math.ceil(ms / 1000));
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+  return h > 0 ? `${h}:${pad2(m)}:${pad2(sec)}` : `${m}:${pad2(sec)}`;
+}
+function ensureAudio() {
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    if (!audioCtx) audioCtx = new AC();
+    if (audioCtx.state === 'suspended') { const p = audioCtx.resume(); if (p && p.catch) p.catch(() => {}); }
+  } catch (e) { /* 音频不可用则只做视觉提醒 */ }
+}
+// 单音：慢起音 + 慢衰减的柔和包络（比此前的急促 880Hz 明显不刺耳），全部在 AudioContext 里排程
+function toneNote(freq, delay, dur, type, peak) {
+  if (!audioCtx) return;
+  try {
+    const t = audioCtx.currentTime + delay;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = type;
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.exponentialRampToValueAtTime(peak, t + 0.08); // 慢起音，避免「嘀」的尖锐感
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start(t);
+    osc.stop(t + dur + 0.05);
+    toneNodes.push(osc);
+    osc.onended = () => { const i = toneNodes.indexOf(osc); if (i !== -1) toneNodes.splice(i, 1); };
+  } catch (e) { /* ignore */ }
+}
+// 固定铃声：一遍轻快叮咚（E5→C5），紧接着一遍柔和提示音（E5→G#5→B5），只响一遍
+function playChime() {
+  if (!audioCtx) return;
+  try {
+    if (audioCtx.state === 'suspended') { const p = audioCtx.resume(); if (p && p.catch) p.catch(() => {}); }
+    toneNote(659.25, 0.00, 0.55, 'sine', 0.16); // 叮
+    toneNote(523.25, 0.30, 0.95, 'sine', 0.13); // 咚
+    toneNote(659.25, 1.05, 0.85, 'sine', 0.14); // 柔
+    toneNote(830.61, 1.28, 0.85, 'sine', 0.12);
+    toneNote(987.77, 1.51, 1.15, 'sine', 0.10);
+  } catch (e) { /* ignore */ }
+}
+function startRing(label) {
+  if (ringing) return;
+  ringing = true;
+  $('ringTime').textContent = label;
+  $('ringBanner').classList.add('show');
+  ensureAudio();
+  playChime(); // 只播一遍，不循环
+  ringHideTimer = setTimeout(stopRing, 3000); // 「时间到」横幅 3 秒后自动消失
+}
+function stopRing() {
+  if (!ringing) return;
+  ringing = false;
+  if (ringHideTimer) { clearTimeout(ringHideTimer); ringHideTimer = null; }
+  for (const n of toneNodes) { try { n.stop(); } catch (e) { /* ignore */ } }
+  toneNodes = [];
+  $('ringBanner').classList.remove('show');
+  $('alarmInfo').textContent = '';
+}
+function renderClock() {
+  const now = new Date();
+  $('clock').textContent = timeStr(now);
+  $('clock').title = alarmAt ? '点击修改定时响铃' : '点击设置定时响铃';
+  if (!alarmAt) {
+    $('clock').classList.remove('alarm');
+    if (!ringing) $('alarmInfo').textContent = '';
+    return;
+  }
+  const left = alarmAt - now.getTime();
+  if (left <= 0) {
+    const label = timeStr(new Date(alarmAt));
+    alarmAt = 0;
+    try { localStorage.removeItem('tgboj_board_alarm'); } catch (e) { /* ignore */ }
+    $('alarmInfo').innerHTML = '<span class="dot"></span>时间到！';
+    startRing(label);
+    return;
+  }
+  $('clock').classList.add('alarm');
+  const target = new Date(alarmAt);
+  const sameDay = target.toDateString() === now.toDateString();
+  $('alarmInfo').innerHTML = `<span class="dot"></span>${sameDay ? '' : '次日 '}${timeStr(target)} · 剩余 ${fmtRemain(left)}`;
+}
+setInterval(renderClock, 500);
+renderClock();
+
+// 闹钟面板交互（HH / MM / SS 三个独立格子）
+const alarmPanel = $('alarmPanel');
+const alarmHH = $('alarmHH');
+const alarmMM = $('alarmMM');
+const alarmSS = $('alarmSS');
+const alarmHint = $('alarmHint');
+const alarmSetBtn = $('alarmSetBtn');
+let alarmPanelOpen = false;
+// 默认值：当前整分钟 + 1 分钟（即下一个 ss=0 的时刻）
+function nextMinuteBoundary() {
+  const d = new Date(Date.now() + 60000);
+  d.setSeconds(0, 0);
+  return d;
+}
+function fillTimeBoxes(d) {
+  alarmHH.value = pad2(d.getHours());
+  alarmMM.value = pad2(d.getMinutes());
+  alarmSS.value = pad2(d.getSeconds());
+}
+function setAlarmPanel(open) {
+  alarmPanelOpen = open;
+  alarmPanel.classList.toggle('open', open);
+  if (open) {
+    fillTimeBoxes(alarmAt ? new Date(alarmAt) : nextMinuteBoundary());
+    alarmHint.textContent = '';
+    setTimeout(() => { alarmHH.focus(); alarmHH.select(); }, 0);
+  }
+}
+// 三格联动：只允许两位数字；填满一格 → 自动跳到下一格（不清空其内容，focus 时已全选，直接输入即可覆盖）；SS 填满后焦点落到「设置」
+function bindTimeBox(el, next) {
+  el.addEventListener('input', () => {
+    const v = el.value.replace(/\D/g, '').slice(0, 2);
+    el.value = v;
+    if (v.length === 2) {
+      if (next) next.focus();
+      else alarmSetBtn.focus();
+    }
+  });
+  el.addEventListener('focus', () => el.select());
+  el.addEventListener('blur', () => { if (el.value.length === 1) el.value = el.value.padStart(2, '0'); });
+}
+bindTimeBox(alarmHH, alarmMM);
+bindTimeBox(alarmMM, alarmSS);
+bindTimeBox(alarmSS, null);
+$('clock').addEventListener('click', (e) => {
+  e.stopPropagation();
+  ensureAudio(); // 在用户手势中创建/恢复 AudioContext，到点才能出声
+  setAlarmPanel(!alarmPanelOpen);
+});
+document.addEventListener('click', (e) => {
+  if (alarmPanelOpen && !alarmPanel.contains(e.target)) setAlarmPanel(false);
+});
+$('alarmCloseBtn').addEventListener('click', (e) => { e.stopPropagation(); setAlarmPanel(false); });
+$('alarmClearBtn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  alarmAt = 0;
+  try { localStorage.removeItem('tgboj_board_alarm'); } catch (err) { /* ignore */ }
+  stopRing();
+  renderClock();
+  setAlarmPanel(false);
+});
+$('alarmSetBtn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  const re = /^\d{2}$/;
+  if (!re.test(alarmHH.value) || !re.test(alarmMM.value) || !re.test(alarmSS.value)) {
+    alarmHint.textContent = '请把时/分/秒都填成两位数字（如 08、05）';
+    return;
+  }
+  const h = parseInt(alarmHH.value, 10), mi = parseInt(alarmMM.value, 10), s = parseInt(alarmSS.value, 10);
+  if (h > 23 || mi > 59 || s > 59) { alarmHint.textContent = '数值超范围：时 0-23，分/秒 0-59'; return; }
+  const d = new Date();
+  d.setHours(h, mi, s, 0);
+  let at = d.getTime();
+  if (at <= Date.now() + 300) at += 24 * 3600 * 1000; // 目标时间已到/已过 → 次日同一时刻
+  stopRing();
+  alarmAt = at;
+  try { localStorage.setItem('tgboj_board_alarm', String(at)); } catch (err) { /* ignore */ }
+  renderClock();
+  setAlarmPanel(false);
+});
+$('ringStop').addEventListener('click', stopRing);
+
+function progTitle(pid) { const p = lastData && lastData.problems.find((x) => x.id === pid); return p ? p.title : '#' + pid; }
+
+const domItems = new Map(); // id -> element
+const VERDICT_ICON = { AC: '✓', WA: '✗', TLE: '⏱', RE: '⚠', MLE: '💾', CE: '⚙', SE: '⚠', OLE: '📤' };
+function feedItemHtml(e) {
+  const s = e.data;
+  const who = esc(s.name || s.username || '?');
+  const pt = esc(progTitle(s.problemId));
+  if (s.status === 'judging' || s.status === 'queued') {
+    const prog = s.totalTests ? `${s.judgedCount}/${s.totalTests}` : '…';
+    return `<span class="who">${who}</span><span class="pt">· ${pt}</span><span class="st"><span class="spinner"></span>Judging ${prog}</span>`;
+  }
+  const icon = VERDICT_ICON[s.verdict] || '·';
+  return `<span class="who">${who}</span><span class="pt">· ${pt}</span><span class="st">${icon} ${esc(s.verdict || '?')}</span>`;
+}
+function feedItemClass(e) {
+  const s = e.data;
+  if (s.status === 'judging' || s.status === 'queued') return 'item run';
+  return 'item ' + (s.verdict === 'AC' ? 'done-ac' : 'done-bad');
+}
+function renderFeed() {
+  const arr = Array.from(shown.values()).sort((a, b) => b.data.submittedAt - a.data.submittedAt);
+  const feed = $('feed');
+  const order = new Set(arr.map((e) => e.data.id));
+  // 新增 + 更新（增量，避免整体重绘导致闪烁）
+  for (const e of arr) {
+    const id = e.data.id;
+    const html = feedItemHtml(e);
+    const cls = feedItemClass(e);
+    let el = domItems.get(id);
+    if (!el) {
+      el = document.createElement('div');
+      el.className = cls + ' fade-in';
+      el.innerHTML = html;
+      el.onclick = () => openSubDetail(id);
+      domItems.set(id, el);
+      feed.appendChild(el);
+    } else {
+      el.className = cls;
+      if (el.dataset.h !== html) { el.innerHTML = html; }
+    }
+    el.dataset.h = html;
+    el.dataset.order = e.data.submittedAt;
+  }
+  // 移除（淡出后删除 DOM）
+  for (const [id, el] of domItems) {
+    if (!order.has(id)) {
+      el.classList.remove('fade-in');
+      el.classList.add('fade-out');
+      const t = el;
+      setTimeout(() => t.remove(), 460);
+      domItems.delete(id);
+    }
+  }
+  // 排序（按提交时间倒序，新的在上）
+  const els = Array.from(feed.querySelectorAll('.item'));
+  els.sort((a, b) => (b.dataset.order || 0) - (a.dataset.order || 0));
+  els.forEach((el) => feed.appendChild(el));
+}
+
+function syncFeed(subs) {
+  const now = Date.now();
+  for (const s of subs) {
+    if (seenAll.has(s.id)) {
+      const prev = shown.get(s.id);
+      if (prev) {
+        prev.data = s;
+        if (s.status === 'done' && !prev.doneAt) prev.doneAt = now; // 评测中 → 完成
+      }
+      continue;
+    }
+    seenAll.add(s.id);
+    // 首次加载：只显示近 20 秒内提交的；更早的旧提交标记后不再显示
+    if (initialized || now - s.submittedAt <= RECENT_WINDOW) {
+      shown.set(s.id, { data: s, doneAt: s.status === 'done' ? now : null });
+    }
+  }
+  if (!initialized) initialized = true;
+  // 完成的提交超时移除
+  for (const [id, e] of shown) {
+    if (e.doneAt && now - e.doneAt > DONE_HOLD_MS) shown.delete(id);
+  }
+  if (shown.size > 30) {
+    const sorted = Array.from(shown.values()).sort((a, b) => b.data.submittedAt - a.data.submittedAt);
+    shown = new Map(sorted.slice(0, 30).map((e) => [e.data.id, e]));
+  }
+  renderFeed();
+}
+
+// 单击查看提交详情（与评测状态页一致：结果 + 测试点 + 代码）
+window.openSubDetail = async function (id) {
+  const mask = $('subMask');
+  const box = $('subBox');
+  box.innerHTML = '<div style="padding:20px;color:#94a3b8;">加载中…</div>';
+  mask.classList.add('open');
+  let s = null;
+  try { s = await (await fetch('/api/submission/' + id)).json(); } catch (e) {}
+  if (!s || s.error) { box.innerHTML = '<div style="padding:20px;color:#f87171;">无法加载详情</div>'; return; }
+  const pts = (s.points || []).map((p) => {
+    const ok = p.verdict === 'AC';
+    return `<span class="pt ${ok ? 'ac' : 'bad'}" title="#${esc(p.id)} ${esc(p.verdict)} · ${p.timeMs}ms">#${esc(p.id)}<br>${ok ? '✓' : p.verdict}</span>`;
+  }).join('');
+  const verdict = s.summary ? s.summary.verdict : '评测中';
+  const vc = verdict === 'AC' ? '#22c55e' : (verdict === '评测中' ? '#60a5fa' : '#f87171');
+  box.innerHTML = `<h3 style="margin:0 0 4px;">提交 #${id} · ${esc(s.name || s.username || '?')} · ${esc(s.problemTitle || '')}</h3>
+    <div style="font-size:15px;color:#94a3b8;">${esc(s.std || '')} · <span style="color:${vc};font-weight:700;">${esc(verdict)}</span></div>
+    ${s.points && s.points.length ? `<div class="pts">${pts}</div>` : ''}
+    <div style="margin:8px 0 4px;font-size:14px;color:#94a3b8;">代码</div>
+    <pre id="subCode">加载代码中…</pre>
+    <div style="text-align:right;margin-top:14px;"><button style="background:#334155;color:#e2e8f0;border:none;border-radius:8px;padding:8px 18px;font-size:14px;cursor:pointer;" onclick="$('subMask').classList.remove('open')">关闭</button></div>`;
+  // 加载代码（未登录时后端会拒绝）
+  try {
+    const r = await fetch('/api/code/' + id);
+    const txt = await r.text();
+    if (r.ok) { $('subCode').textContent = txt; }
+    else { let m = txt; try { m = JSON.parse(txt).error; } catch (e) {} $('subCode').textContent = '（无法查看代码：' + m + '）'; }
+  } catch (e) { $('subCode').textContent = '（代码加载失败）'; }
+};
+$('subMask').addEventListener('click', (e) => { if (e.target === $('subMask')) $('subMask').classList.remove('open'); });
+
+function renderHelp(reqs) {
+  const sec = $('helpSection');
+  const list = (reqs || []).slice().sort((a, b) => b.createdAt - a.createdAt);
+  if (!list.length) { sec.style.display = 'none'; sec.innerHTML = ''; return; }
+  sec.style.display = 'flex';
+  sec.innerHTML = list.map((r) => `
+    <div class="hcard">
+      <div class="hhead">🙋 ${esc(r.fullname || r.username)} 请求查错</div>
+      <div class="hmeta">提交 #${r.submissionId} · 题 ${r.problemId} ${esc(r.problemTitle)} · ${esc(r.std || '')} · 求助于 ${new Date(r.createdAt).toLocaleString('zh-CN', { hour12: false })}</div>
+      ${r.note ? `<div class="hmeta">备注：${esc(r.note)}</div>` : ''}
+      <pre>${esc(r.code || '（代码无法加载）')}</pre>
+    </div>`).join('');
+}
+
+async function tick() {
+  try {
+    const d = await (await fetch('/api/board').then(r => { if (r.status === 401) { gateLogin(); throw new Error('login required'); } return r; })).json();
+    lastData = d;
+    renderHelp(d.helpRequests || []);
+    $('title').textContent = '🏆 ' + (d.sessionName || '课堂大屏');
+    const probs = d.problems.slice().sort((a, b) => (b.star ? 1 : 0) - (a.star ? 1 : 0));
+    const pc = d.participantCount || 0;
+    $('grid').innerHTML = probs.map((p) => {
+      const rate = pc ? Math.round(100 * p.acCount / pc) : 0;
+      const allAc = pc > 0 && p.acCount >= pc;
+      return `<div class="card ${allAc ? 'ac' : ''} ${p.star ? 'must' : ''}">
+        <div class="ptitle">${esc(p.title)}${p.star ? ' <span class="star">★</span>' : ''}<span class="pid">#${p.id}</span></div>
+        <div class="stats">通过 <span class="ac">${p.acCount}</span> 人 · 提交 ${p.submitCount} 次${p.judging ? ` · <span class="judging">${p.judging} 评测中</span>` : ''}</div>
+        <div class="bar"><div class="fill" style="width:${rate}%"></div></div>
+      </div>`;
+    }).join('');
+    syncFeed(d.recentSubs || []);
+  } catch (e) { /* 网络抖动忽略，下一轮重试 */ }
+}
+// 管理员门禁：仅管理员可查看课堂大屏
+async function boot() {
+  try {
+    const d = await (await fetch('/api/auth/me')).json();
+    if (d.user && (d.user.role === 'admin' || d.user.role === 'superadmin')) {
+      tick();
+      setInterval(tick, 1000); // 1 秒轮询，实时跟踪评测
+      return;
+    }
+  } catch (e) { /* 走未授权分支 */ }
+  document.getElementById('wrap').style.display = 'none';
+  document.body.insertAdjacentHTML('beforeend',
+    '<div style="position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;">' +
+    '<div style="font-size:30px;color:#94a3b8;">🔒 仅管理员可访问课堂大屏</div>' +
+    '<a href="/admin.html" style="font-size:20px;color:#60a5fa;">去登录</a></div>');
+}
+boot();
+</script>
+</body>
+</html>

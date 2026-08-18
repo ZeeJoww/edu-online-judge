@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>附件 - TGBOJ</title>
+<link rel="stylesheet" href="/style.css">
+<script src="/gate.js"></script>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <div class="toolbar"><h2 style="margin:0">附件</h2><span class="sub" id="info"></span>
+      <button class="secondary" id="uploadBtn" style="display:none; padding:5px 14px; font-size:12px;" onclick="document.getElementById('upFile').click()">📤 上传附件</button>
+      <input type="file" id="upFile" style="display:none;" onchange="uploadFile(this)">
+    </div>
+    <table>
+      <thead><tr><th>文件名</th><th>类型</th><th>大小</th><th>上传时间</th><th>操作</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+</div>
+<script>
+const esc = (s) => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const $ = (id) => document.getElementById(id);
+const VIEWABLE = { '.md': true, '.cpp': true, '.pdf': true, '.txt': true, '.png': true, '.jpg': true, '.jpeg': true, '.gif': true, '.webp': true, '.svg': true, '.bmp': true };
+const fmtSize = (n) => n >= 1048576 ? (n/1048576).toFixed(1) + ' MB' : n >= 1024 ? Math.round(n/1024) + ' KB' : n + ' B';
+let isAdmin = false;
+async function bootFiles() {
+  try { const me = (await (await fetch('/api/auth/me')).json()).user; isAdmin = !!(me && (me.role === 'admin' || me.role === 'superadmin')); } catch (e) { isAdmin = false; }
+  if (isAdmin) $('uploadBtn').style.display = '';
+  loadFiles();
+}
+bootFiles();
+// 登录成功（gate.js 弹窗登录 / 会话恢复）后重新检测管理员并加载附件列表
+window.addEventListener('tgboj:auth', bootFiles);
+async function loadFiles() {
+  let d;
+  try { d = await (await fetch('/api/files')).json(); }
+  catch (e) { $('info').textContent = '附件加载失败，请刷新重试。'; return; }
+  if (!d.files) { $('info').textContent = d.error || '附件加载失败'; return; }
+  $('info').textContent = `共 ${d.files.length} 个附件`;
+  const rows = $('rows');
+  rows.innerHTML = '';
+  if (!d.files.length) { rows.innerHTML = '<tr><td colspan="5" class="sub">暂无附件</td></tr>'; return; }
+  for (const f of d.files) {
+    const tr = document.createElement('tr');
+    const view = VIEWABLE[f.ext] ? `<a class="btn-link" href="/view.html?id=${f.id}" style="margin-right:8px;">在线阅读</a>` : '';
+    const ops = isAdmin
+      ? `${view}
+        <button class="${f.hidden ? 'btn-warn' : 'btn-ok'}" style="padding:2px 10px; font-size:12px; margin-right:4px;" onclick="toggleFileHidden(${f.id},${!f.hidden})" title="${f.hidden ? '点击后开放' : '点击后隐藏'}">${f.hidden ? '隐藏' : '开放'}</button>
+        <button class="secondary" style="padding:2px 10px; font-size:12px; margin-right:4px;" onclick="deleteFile(${f.id})">删除</button>
+        <a class="btn-link" href="/files/${f.id}/download" style="background:#6b7280;">下载</a>`
+      : `${view}<a class="btn-link" href="/files/${f.id}/download" style="background:#6b7280;">下载</a>`;
+    tr.innerHTML = `<td><b>${esc(f.name)}</b></td><td class="sub">${esc(f.ext || '—')}</td><td class="sub">${fmtSize(f.size)}</td>
+      <td class="sub">${new Date(f.uploadedAt).toLocaleString('zh-CN', { hour12:false })}</td>
+      <td style="white-space:nowrap; text-align:right;">${ops}</td>`;
+    rows.appendChild(tr);
+  }
+}
+window.toggleFileHidden = async function (id, hidden) {
+  const r = await fetch('/api/admin/file/hidden', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, hidden }) });
+  const d = await r.json();
+  if (!r.ok) { alert(d.error || '操作失败'); return; }
+  loadFiles();
+};
+window.deleteFile = async function (id) {
+  if (!confirm('确定删除该附件吗？删除后不可恢复。')) return;
+  const r = await fetch('/api/admin/file/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
+  const d = await r.json();
+  if (!r.ok) { alert(d.error || '操作失败'); return; }
+  loadFiles();
+};
+window.uploadFile = async function (input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+  const fd = new FormData();
+  fd.append('file', file);
+  const r = await fetch('/api/admin/file', { method: 'POST', body: fd });
+  const d = await r.json();
+  input.value = '';
+  if (!r.ok) { alert(d.error || '上传失败'); return; }
+  loadFiles();
+};
+</script>
+</body>
+</html>

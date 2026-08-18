@@ -1,0 +1,26 @@
+name: Check
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Check JavaScript syntax
+        shell: bash
+        run: git ls-files -z '*.js' ':!public/vendor/**' | xargs -0 -n1 node --check
+      - name: Check JSON and shell syntax
+        shell: bash
+        run: |
+          node -e "JSON.parse(require('fs').readFileSync('config.example.json', 'utf8'))"
+          git ls-files -z '*.sh' | xargs -0 -n1 bash -n

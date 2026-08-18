@@ -1,0 +1,1707 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>管理 - TGBOJ</title>
+<link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/vendor/katex/dist/katex.min.css">
+<script src="/vendor/katex/dist/katex.min.js"></script>
+<script src="/vendor/katex/dist/contrib/auto-render.min.js"></script>
+
+<script src="/gate.js"></script>
+<script src="/common.js"></script>
+</head>
+<body>
+<header>
+  <span class="logo">⚡ TGBOJ</span>
+  <nav>
+    <a href="/">首页</a> <a href="/problems.html">题目列表</a>
+    <a href="/homework.html">作业</a>
+    <a href="/status.html">评测状态</a>
+    <a href="/rank.html">排行榜</a>
+    <a href="/contest.html">比赛</a>
+    <a href="/files.html">附件</a>
+  </nav>
+</header>
+<div class="wrap">
+  <div class="card" id="noPerm" style="display:none;">
+    <h2>无权限</h2>
+    <p class="sub">当前账号没有管理员权限，无法访问管理功能。</p>
+  </div>
+
+  <div id="adminArea" style="display:none">
+    <div class="tabbar" id="admTabs">
+      <button class="tab-btn active" data-tab="logs" onclick="switchTab('logs')">📋 日志</button>
+      <button class="tab-btn" data-tab="users" onclick="switchTab('users')">👥 用户</button>
+      <button class="tab-btn" data-tab="problems" onclick="switchTab('problems')">📝 题目</button>
+      <button class="tab-btn" data-tab="homework" onclick="switchTab('homework')">📚 txt作业</button>
+      <button class="tab-btn" data-tab="files" onclick="switchTab('files')">📎 附件</button>
+      <button class="tab-btn" data-tab="contest" onclick="switchTab('contest')">🏆 比赛</button>
+      <button class="tab-btn" data-tab="clars" onclick="switchTab('clars')">❓ 澄清</button>
+      <button class="tab-btn" data-tab="help" onclick="switchTab('help')">🙋 求助 <span id="helpDot" style="display:none; background:#ef4444; color:#fff; border-radius:10px; padding:0 6px; font-size:11px; line-height:16px; margin-left:4px;">0</span></button>
+      <button class="tab-btn" data-tab="bugs" onclick="switchTab('bugs')">🐞 反馈 <span id="bugDot" style="display:none; background:#ef4444; color:#fff; border-radius:10px; padding:0 6px; font-size:11px; line-height:16px; margin-left:4px;">0</span></button>
+      <button class="tab-btn" data-tab="exams" onclick="switchTab('exams')">📅 模考</button>
+      <button class="secondary" style="padding:5px 14px; font-size:12px; margin-left:auto;" onclick="redDotPreview()" title="预览学生端未读反馈红点的样子">🔴 红点预览</button>
+    </div>
+    <div class="card tab-pane" data-tab="logs">
+      <div class="card" style="margin-bottom:12px;">
+        <div class="toolbar"><h2 style="margin:0">⚙️ 运行配置</h2><span class="sub">config.json 只读展示（修改需编辑文件并重启）</span></div>
+        <div id="cfgBox" class="sub" style="padding:4px 0;">加载中…</div>
+        <div id="aiCfgBox" style="display:none; margin-top:8px; border-top:1px dashed rgba(128,128,128,.25); padding-top:8px;">
+          <label class="sub" style="margin-right:14px;"><input type="checkbox" id="aiAutoCheck" style="width:auto;"> 新提交自动 AI 检测</label>
+          <label class="sub" style="margin-right:14px;"><input type="checkbox" id="aiAutoBlock" style="width:auto;"> 自动拦截危险代码（评测前检测，风险 ≥ <select id="aiBlockRisk" style="margin:0; padding:2px 4px;"><option value="high">高</option><option value="medium">中</option></select> 时拦截）</label>
+          <button class="secondary" style="padding:4px 12px; font-size:12px;" onclick="saveAiSettings()">保存</button>
+          <span class="sub" id="aiCfgTip"></span>
+          <div class="sub" style="margin-top:4px; font-size:12px;">说明：仅学生的新提交参与自动检测（管理员提交与离线导入不检测）；高风险代码无论何时都会强制拦截并暂停该用户提交 1 分钟；AI 服务异常时提交照常评测（fail-open）。开关即时生效并写回 config.json。</div>
+        </div>
+      </div>
+      <div class="card" style="margin-bottom:12px;">
+        <div class="toolbar"><h2 style="margin:0">⚡ 评测队列</h2><span class="sub" id="qInfo">加载中…</span></div>
+        <div id="qBox" class="sub" style="max-height:180px; overflow:auto; font-size:13px;">加载中…</div>
+      </div>
+      <div class="card" style="margin-bottom:12px;">
+        <div class="toolbar"><h2 style="margin:0">📢 全站公告</h2><span class="sub">首页横幅展示，清空并保存即删除</span></div>
+        <textarea id="noticeText" rows="3" style="min-height:70px; margin-top:6px;"></textarea>
+        <div style="margin-top:8px;"><button class="secondary" onclick="saveNotice()">保存公告</button></div>
+      </div>
+      <div class="toolbar"><h2 style="margin:0">交互日志</h2><span class="sub">登录用户的所有交互自动记录</span></div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; align-items:center;">
+        <input id="fUser" placeholder="按用户筛选（姓名/用户名）" style="width:180px; margin:0;">
+        <input id="fPage" placeholder="按页面筛选，如 /problem" style="width:160px; margin:0;">
+        <select id="fAction" style="width:130px; margin:0;">
+          <option value="">全部动作</option>
+          <option value="page_view">page_view</option>
+          <option value="page_leave">page_leave</option>
+          <option value="submit">提交代码</option>
+          <option value="view_code">查看代码</option>
+          <option value="download">下载数据</option>
+          <option value="interact">其他</option>
+        </select>
+        <button class="secondary" style="padding:6px 14px;" onclick="loadLogs()">筛选</button>
+        <span class="sub" id="logCount"></span>
+      </div>
+      <div id="logBox" style="max-height:400px; overflow:auto; font-size:13px;"></div>
+    </div>
+
+    <div class="card tab-pane" data-tab="contest">
+      <div class="toolbar"><h2 style="margin:0">🏆 比赛时间与榜单</h2><span class="sub">开始前/结束后学生不可提交（管理员不受限）；学生榜单页 /contest.html</span></div>
+      <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px; align-items:center;">
+        <input id="ctTitle" placeholder="比赛名称" style="width:180px; margin:0;">
+        <label class="sub" style="margin:0;">开始 <input type="datetime-local" id="ctStart" style="margin:0;"></label>
+        <label class="sub" style="margin:0;">结束 <input type="datetime-local" id="ctEnd" style="margin:0;"></label>
+        <select id="ctMode" style="width:150px; margin:0;">
+          <option value="oi">OI（末次提交）</option>
+          <option value="ioi">IOI（最高分）</option>
+          <option value="acm">ACM（罚时）</option>
+        </select>
+        <label class="sub" style="margin:0;">罚时(分) <input type="number" id="ctPen" value="20" min="0" max="600" style="width:70px; margin:0;"></label>
+        <label class="sub" style="margin:0;">封榜 <input type="checkbox" id="ctFreezeOn" style="margin:0;"> 结束前 <input type="number" id="ctFreezeMin" value="30" min="1" max="600" style="width:70px; margin:0;" disabled> 分钟</label>
+        <button onclick="saveContest()" style="padding:6px 14px;">保存</button>
+        <button class="secondary" onclick="clearContest()" style="padding:6px 14px;">结束/清除</button>
+      </div>
+      <div class="sub" id="ctInfo">加载中…</div>
+    </div>
+
+    <div class="card tab-pane" data-tab="clars">
+      <div class="toolbar"><h2 style="margin:0">❓ 比赛澄清</h2><span class="sub">回复后可选「公开」给全体学生；学生仅比赛进行期间可提问（10 分钟最多 3 条）</span></div>
+      <div id="clarList" class="sub">加载中…</div>
+    </div>
+
+    <div class="card tab-pane" data-tab="help">
+      <div class="toolbar"><h2 style="margin:0">🙋 代码求助</h2><span class="sub" id="helpInfo">加载中…</span></div>
+      <div id="helpList" class="sub">加载中…</div>
+    </div>
+
+    <div class="card tab-pane" data-tab="bugs">
+      <div class="toolbar"><h2 style="margin:0">🐞 问题反馈</h2><span class="sub" id="bugInfo">加载中…</span></div>
+      <div id="bugList" class="sub">加载中…</div>
+    </div>
+
+    <div class="card tab-pane" data-tab="users">
+      <div class="toolbar"><h2 style="margin:0">用户管理</h2><span class="sub" id="userTip"></span></div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; align-items:center;">
+        <input id="userSearch" placeholder="筛选：用户名/姓名/编号" style="width:180px; margin:0;" oninput="loadUsers()">
+        <button onclick="openUserEdit(0)">➕ 新增用户</button>
+        <button class="secondary" onclick="openUserBatch()">📥 批量建号</button>
+        <span class="sub">编号(studentId)用于离线模考代码包匹配；禁用=禁止登录</span>
+      </div>
+      <table>
+        <thead><tr><th>ID</th><th>用户名</th><th>姓名</th><th>编号</th><th>角色</th><th>状态</th><th>注册时间</th><th>操作</th></tr></thead>
+        <tbody id="userRows"></tbody>
+      </table>
+    </div>
+
+    <div class="card tab-pane" data-tab="problems" style="padding:12px 18px;">
+      <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+        <b style="font-size:14px;">上传压缩包创建题目 <button class="pkg-help" onclick="showPkgHelp()" title="压缩包格式说明" aria-label="压缩包格式说明">?</button></b>
+        <input type="file" id="pkgFile" accept=".zip,.tar.gz,.tgz" style="width:auto; margin:0;">
+        <button onclick="uploadPkg()" style="padding:6px 14px;">上传创建</button>
+        <span class="sub" id="pkgTip"></span>
+      </div>
+      <div class="err" id="pkgErr"></div>
+    </div>
+
+    <div class="card tab-pane" data-tab="problems">
+      <h2>添加题目</h2>
+      <p class="sub">编号自动分配（从 2026 开始递增，不可手动指定）。测试数据需<b>同名成对</b>上传，如 <code>1.in</code> 与 <code>1.out</code>；<b>可不提供，即为仅题面题目</b>。</p>
+      <label>题目名称</label>
+      <input type="text" id="ptitle" placeholder="如：A+B 求和" maxlength="60">
+      <label>题目描述（Markdown）</label>
+      <textarea id="pdesc" placeholder="# 题目描述&#10;&#10;输入格式 / 输出格式 / 数据范围..." style="min-height:150px"></textarea>
+      <label>测试数据（.in / .out 文件，同名成对；可不提供，即为仅题面题目）</label>
+      <input type="file" id="pdata" multiple accept=".in,.out">
+      <label>题解（Markdown，可选）</label>
+      <textarea id="psol" placeholder="# 题解&#10;思路 / 代码..." style="min-height:120px"></textarea>
+      <div class="err" id="addErr"></div>
+      <div style="margin-top:14px; display:flex; gap:12px; align-items:center;">
+        <button id="addBtn">添加题目</button>
+        <span class="sub" id="addTip"></span>
+      </div>
+    </div>
+
+    <div class="card tab-pane" data-tab="problems">
+      <div class="toolbar"><h2 style="margin:0">📢 题目提示更新通知</h2>
+        <span class="sub" style="margin-left:auto;">向打开过该题目的学生发送通知（如：#2075的提示有更新）</span>
+      </div>
+      <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+        <input type="number" id="notifyPid" placeholder="题目编号" style="width:120px; margin:0;">
+        <input type="text" id="notifyText" placeholder="通知内容，如：#2075的提示有更新" style="max-width:360px; margin:0;">
+        <button onclick="sendNotify()" style="padding:6px 14px;">发送</button>
+        <span class="sub" id="notifyTip"></span>
+      </div>
+    </div>
+
+    <div class="card tab-pane" data-tab="problems">
+      <div class="toolbar"><h2 style="margin:0">现有题目</h2><span class="sub">编号从 2026 开始，自动递增；「排行」控制是否参与排行榜</span></div>
+      <table>
+        <thead><tr><th>编号</th><th>名称</th><th>时间限制</th><th>内存限制</th><th>排行</th><th>题解</th><th>管理</th></tr></thead>
+        <tbody id="probRows"></tbody>
+      </table>
+    </div>
+
+    <div class="card tab-pane" data-tab="homework">
+      <div class="toolbar"><h2 style="margin:0">📚 作业期次</h2>
+        <span class="sub" style="margin-left:auto;">当前期次由管理员决定，学生作业页与排行榜默认展示当前期次。</span>
+      </div>
+      <div id="sessAdmin" style="margin:4px 0 10px;"></div>
+      <hr style="border:none; border-top:1px solid var(--line); margin:6px 0 14px;">
+      <div class="toolbar"><h2 style="margin:0">txt作业管理</h2>
+        <button class="secondary" onclick="toggleNewHwForm()" style="padding:5px 14px; font-size:12px;" id="newHwBtn">+ 新建作业</button>
+      </div>
+      <div id="hwAdmin"></div>
+      <div id="newHwForm" style="display:none; border:1px solid var(--line); border-radius:8px; padding:14px; margin:10px 0;">
+        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:8px;">
+          <input type="text" id="nhTitle" placeholder="作业标题" style="max-width:260px;">
+          <input type="datetime-local" id="nhStart" title="开放时间（留空 = 立即开放）" style="max-width:230px;">
+          <label style="font-size:13px;"><input type="checkbox" id="nhView"> 允许查看他人答案</label>
+          <label style="font-size:13px;"><input type="checkbox" id="nhHidden"> 先隐藏（默认开放）</label>
+          <button onclick="createHw()">创建</button>
+          <span class="sub" id="nhTip"></span>
+        </div>
+        <textarea id="nhQuestions" placeholder="问题列表，每行一个问题" style="min-height:80px;"></textarea>
+      </div>
+      <div class="toolbar" style="margin-top:14px;">
+        <h2 style="margin:0">txt作业答案</h2>
+        <select id="hwSel" onchange="loadHwAnswers()" style="max-width:280px"></select>
+      </div>
+      <div id="hwAnswers"></div>
+    </div>
+
+    <div class="card tab-pane" data-tab="exams">
+      <div class="toolbar"><h2 style="margin:0">📅 模考（OI 考试 / 部分分）</h2>
+        <span class="sub" style="margin-left:auto;">考试期间学生提交自动计入模考成绩；结束后公布成绩并开放订正</span>
+      </div>
+      <div id="examNewForm" style="border:1px solid var(--line); border-radius:8px; padding:14px; margin:10px 0; display:none;">
+        <input type="hidden" id="exId" value="0">
+        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:8px;">
+          <input type="text" id="exName" placeholder="模考名称（如：NOIP 模拟赛 一）" style="max-width:240px;">
+          <label class="sub" style="margin:0;">开始 <input type="datetime-local" id="exStart" style="width:auto; margin-left:4px;"></label>
+          <label class="sub" style="margin:0;">结束 <input type="datetime-local" id="exEnd" style="width:auto; margin-left:4px;"></label>
+          <label class="sub" style="margin:0;">公布 <input type="datetime-local" id="exPub" style="width:auto; margin-left:4px;" title="成绩公布时间（不填 = 考试结束即公布）"></label>
+          <label class="sub" style="margin:0;"><input type="checkbox" id="exHide" checked style="width:auto; margin-right:4px;">考试期间隐藏评测结果</label>
+        </div>
+        <div class="sub" style="margin-bottom:6px;">考试题目（勾选；题目需先在「题目」页签配置好子任务分值）：</div>
+        <div id="exProbs" style="max-height:180px; overflow:auto; border:1px solid var(--line); border-radius:6px; padding:8px 10px;"></div>
+        <div style="margin-top:10px; display:flex; gap:10px; align-items:center;">
+          <button onclick="saveExam()" id="exSaveBtn">保存模考</button>
+          <button class="secondary" onclick="cancelExamForm()">取消</button>
+          <span class="sub" id="exTip"></span>
+        </div>
+      </div>
+      <div style="margin:8px 0;"><button class="secondary" onclick="openExamForm(0)" style="padding:5px 14px; font-size:12px;">＋ 新建模考</button></div>
+      <div id="examList"></div>
+    </div>
+
+    <div class="card tab-pane" data-tab="files">
+      <h2>上传附件</h2>
+      <p class="sub">上传后对所有用户公开，可在附件页下载；<code>.md / .cpp / .pdf / .txt</code> 支持在线阅读。</p>
+      <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+        <input type="file" id="upFile">
+        <button onclick="uploadFile()">上传</button>
+        <span class="sub" id="upTip"></span>
+      </div>
+      <div class="err" id="upErr"></div>
+      <div style="margin-top:16px;"><b>现有附件</b></div>
+      <table style="margin-top:8px;">
+        <thead><tr><th>文件名</th><th>类型</th><th>大小</th><th>上传时间</th><th></th></tr></thead>
+        <tbody id="fileRows"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+<div class="modal-mask" id="mask"><div class="modal" id="modal"></div></div>
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+// 未读反馈红点预览（学生端右上角）
+window.redDotPreview = function () {
+  $('modal').innerHTML = `<h3>🔴 未读反馈红点预览</h3>
+    <p class="sub">学生端右上角（👤 用户名按钮）在有未读教师评语/反馈时的样子：</p>
+    <div style="padding:24px 0; text-align:center;">
+      <button class="user-menu-btn" style="display:inline-flex; align-items:center; gap:6px; background:#1e293b; color:#e2e8f0; border:1px solid #475569; border-radius:20px; padding:6px 16px; font-size:13px; position:relative;">👤 学生张三 <span class="arrow">▾</span><span style="position:absolute; top:2px; right:2px; width:10px; height:10px; background:#ef4444; border-radius:50%; border:2px solid #fff;"></span></button>
+    </div>
+    <p class="sub">右上角的小红点即未读提示；学生打开对应作业查看评语后红点消失。</p>
+    <div class="actions"><button onclick="$('mask').classList.remove('open')">关闭</button></div>`;
+  $('mask').classList.add('open');
+};
+const fmtTime = (t) => t ? new Date(t).toLocaleString('zh-CN', { hour12:false }) : '';
+const ROLE_TXT = { superadmin: '超管', admin: '管理员', user: '用户' };
+const STATUS_TXT = { active: '正常', pending: '待审核', rejected: '禁用' };
+
+let ME = null;
+async function bootAdmin() {
+  ME = (await (await fetch('/api/auth/me')).json()).user;
+  const isAdminRole = ME && (ME.role === 'admin' || ME.role === 'superadmin');
+  const modeIsAdmin = (localStorage.getItem('tgboj_mode') === 'user') ? false : true;
+  const admin = isAdminRole && modeIsAdmin;
+  if (!admin) {
+    $('adminArea').style.display = 'none';
+    $('noPerm').style.display = 'block';
+    $('noPerm').querySelector('.sub').textContent = ME
+      ? (isAdminRole
+        ? '当前为普通用户界面模式，可在右上角切换回「管理员界面」。'
+        : '当前账号没有管理员权限，无法访问管理功能。')
+      : '请先登录管理员账号。';
+    return;
+  }
+  $('noPerm').style.display = 'none';
+  $('adminArea').style.display = 'block';
+  switchTab(location.hash.replace('#', '') || 'logs');
+  loadConfigCard();
+  loadNotice();
+  updateHelpDot();
+}
+bootAdmin();
+// 登录成功（gate.js 弹窗登录 / 会话恢复）后重新引导管理页，避免停留在「请先登录」提示
+window.saveAiSettings = async function () {
+  const tip = $('aiCfgTip');
+  const body = { autoCheck: $('aiAutoCheck').checked, autoBlock: $('aiAutoBlock').checked, blockRisk: $('aiBlockRisk').value };
+  if (body.autoBlock && !body.autoCheck) { tip.textContent = ' 自动拦截需要先开启自动检测'; return; }
+  const r = await fetch('/api/admin/ai-settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const d = await r.json();
+  if (!r.ok) { tip.textContent = ' ' + (d.error || '保存失败'); return; }
+  tip.textContent = ' ✓ 已保存并即时生效';
+};
+window.addEventListener('tgboj:auth', bootAdmin);
+
+async function loadConfigCard() {
+  const box = $('cfgBox');
+  if (!box) return;
+  try {
+    const d = await (await fetch('/api/admin/config')).json();
+    if (!d.config) throw new Error('无数据');
+    const c = d.config;
+    box.textContent = `标题: ${c.title} · 端口: ${c.port} · 默认时限: ${c.timeLimitSec}s · 默认内存: ${Math.round(c.memLimitKb / 1024)}MB · 输出上限(OLE): ${Math.round((c.outputLimitKb || 65536) / 1024)}MB · 编译超时: ${c.compileTimeoutMs}ms · 编译器: ${c.compilerPath} · 并发: ${c.maxParallel}（单用户 ${c.maxPerUser}）· 模考功能: ${c.examsEnabled ? '开启' : '关闭'} · 测试点输出下载: ${c.allowTestOutputDownload ? '允许' : '仅管理员'} · AI 检测: ${c.aiReviewEnabled ? '已启用' : '未配置'}`;
+    if (c.aiReviewEnabled) {
+      $('aiCfgBox').style.display = 'block';
+      $('aiAutoCheck').checked = !!c.aiAutoCheck;
+      $('aiAutoBlock').checked = !!c.aiAutoBlock;
+      $('aiBlockRisk').value = c.aiBlockRisk || 'high';
+    }
+  } catch (e) { box.textContent = '加载失败'; }
+}
+async function loadNotice() {
+  const ta = $('noticeText');
+  if (!ta) return;
+  try {
+    const d = await (await fetch('/api/notice')).json();
+    ta.value = d.text || '';
+  } catch (e) { /* ignore */ }
+}
+async function saveNotice() {
+  const r = await fetch('/api/admin/notice', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: $('noticeText').value }) });
+  const d = await r.json();
+  if (!r.ok) { alert(d.error || '保存失败'); return; }
+  alert(d.text ? '公告已发布' : '公告已删除');
+}
+
+async function loadLogs() {
+  const u = encodeURIComponent($('fUser').value.trim());
+  const p = encodeURIComponent($('fPage').value.trim());
+  const a = encodeURIComponent($('fAction').value);
+  const d = await (await fetch('/api/admin/logs?limit=500&user=' + u + '&page=' + p + '&action=' + a)).json();
+  const box = $('logBox');
+  $('logCount').textContent = d.logs.length ? `共 ${d.logs.length} 条` : '';
+  box.innerHTML = d.logs.length
+    ? d.logs.map((l) => `<div style="padding:3px 0; border-bottom:1px solid var(--line);">
+        <span class="sub">${fmtTime(l.time)}</span> <b>${esc(l.fullname || l.username || '?')}</b>
+        <span class="badge">${esc(l.action)}</span> <span class="sub">${esc(l.page)}${l.detail ? ' · ' + esc(l.detail) : ''}</span></div>`).join('')
+    : '<p class="sub">没有符合条件的日志</p>';
+}
+async function loadUsers() {
+  const d = await (await fetch('/api/admin/users')).json();
+  const kw = $('userSearch') ? $('userSearch').value.trim().toLowerCase() : '';
+  const rows = $('userRows');
+  rows.innerHTML = '';
+  const list = kw ? d.users.filter(u => (u.username || '').toLowerCase().includes(kw) || (u.fullname || '').toLowerCase().includes(kw) || (u.studentId || '').toLowerCase().includes(kw)) : d.users;
+  const pending = d.users.filter(u => u.status === 'pending').length;
+  $('userTip').textContent = `共 ${d.users.length} 人，待审核 ${pending} 人` + (kw ? `，筛选出 ${list.length} 人` : '');
+  for (const u of list) {
+    const tr = document.createElement('tr');
+    let ops = '';
+    if (u.status === 'pending') {
+      ops = `<button class="secondary" onclick="auditUser(${u.id},'approve')">通过</button>
+             <button class="secondary" onclick="auditUser(${u.id},'reject')">拒绝</button>`;
+    } else {
+      ops = `<button class="secondary" title="发消息" onclick="openMsgCompose(${u.id},'${escAttr(u.username)}','${escAttr(u.fullname)}')">✉️</button>
+             <button class="secondary" onclick="openUserEdit(${u.id})">编辑</button>
+             <button class="secondary" onclick="openUserPw(${u.id})">密码</button>`;
+      if (ME && ME.role === 'superadmin' && u.role !== 'superadmin') {
+        ops += u.role === 'admin'
+          ? `<button class="secondary" onclick="setRole(${u.id},'user')">取消管理员</button>`
+          : `<button class="secondary" onclick="setRole(${u.id},'admin')">设为管理员</button>`;
+        ops += u.status === 'active'
+          ? `<button class="secondary" onclick="setStatus(${u.id},'rejected')">禁用</button>`
+          : `<button class="secondary" onclick="setStatus(${u.id},'active')">启用</button>`;
+        ops += `<button class="secondary" style="color:#c0392b;" onclick="delUser(${u.id},'${escAttr(u.username)}')">删除</button>`;
+      }
+    }
+    tr.innerHTML = `<td>${u.id}</td><td>${esc(u.username)}</td><td>${esc(u.fullname)}</td><td class="sub">${esc(u.studentId || '—')}</td>
+      <td>${ROLE_TXT[u.role] || u.role}</td><td>${STATUS_TXT[u.status] || u.status}</td>
+      <td class="sub">${fmtTime(u.createdAt)}</td><td style="text-align:right; white-space:nowrap;">${ops}</td>`;
+    rows.appendChild(tr);
+  }
+}
+async function auditUser(id, action) {
+  const r = await fetch('/api/admin/user/audit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, action }) });
+  const d = await r.json();
+  if (!r.ok) { alert(d.error || '操作失败'); return; }
+  loadUsers();
+}
+async function setRole(id, role) {
+  const r = await fetch('/api/admin/user/role', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, role }) });
+  const d = await r.json();
+  if (!r.ok) { alert(d.error || '操作失败'); return; }
+  loadUsers();
+}
+async function setStatus(id, status) {
+  const d2 = await (await fetch('/api/admin/users')).json();
+  const u = d2.users.find(x => x.id === id);
+  if (!u) return;
+  const r = await fetch('/api/admin/user/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, username: u.username, fullname: u.fullname, studentId: u.studentId || '', status }) });
+  const d = await r.json();
+  if (!r.ok) { alert(d.error || '操作失败'); return; }
+  loadUsers();
+}
+async function delUser(id, username) {
+  if (!confirm(`确定删除用户「${username}」吗？\n\n其提交与作业答案将保留（按历史用户名展示），仅移除账号与会话。此操作不可撤销。`)) return;
+  const r = await fetch('/api/admin/user/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
+  const d = await r.json();
+  if (!r.ok) { alert(d.error || '删除失败'); return; }
+  loadUsers();
+}
+async function openUserEdit(id) {
+  const d = await (await fetch('/api/admin/users')).json();
+  const u = id ? d.users.find(x => x.id === id) : null;
+  if (id && !u) { alert('用户不存在'); return; }
+  const canRole = ME && ME.role === 'superadmin' && (!u || u.role !== 'superadmin');
+  $('modal').innerHTML = `<h3>${u ? '编辑用户 #' + u.id : '新增用户'}</h3>
+    <label>用户名（2-16 位字母/数字/下划线，字母开头）</label>
+    <input id="ueUser" value="${u ? escAttr(u.username) : ''}" maxlength="30">
+    <label>姓名</label>
+    <input id="ueName" value="${u ? escAttr(u.fullname) : ''}" maxlength="30">
+    <label>编号（studentId，离线模考代码包匹配用，可留空）</label>
+    <input id="ueSid" value="${u ? escAttr(u.studentId || '') : ''}" maxlength="30">
+    <label>${u ? '新密码（留空则不修改）' : '初始密码（至少 7 位）'}</label>
+    <input id="uePw" type="text" placeholder="至少 7 位">
+    ${canRole ? `<label>角色</label><select id="ueRole"><option value="user"${u && u.role === 'user' ? ' selected' : ''}>用户</option><option value="admin"${u && u.role === 'admin' ? ' selected' : ''}>管理员</option></select>
+    <label>状态</label><select id="ueStatus"><option value="active"${u && u.status === 'active' ? ' selected' : ''}>正常</option><option value="rejected"${u && u.status === 'rejected' ? ' selected' : ''}>禁用</option></select>` : ''}
+    <div class="err" id="ueErr"></div>
+    <div class="actions"><button class="secondary" onclick="$('mask').classList.remove('open')">取消</button><button onclick="saveUser(${id})">保存</button></div>`;
+  $('mask').classList.add('open');
+}
+async function saveUser(id) {
+  const body = {
+    id, username: $('ueUser').value.trim(), fullname: $('ueName').value.trim(),
+    studentId: $('ueSid').value.trim(), password: $('uePw').value,
+  };
+  if ($('ueRole')) body.role = $('ueRole').value;
+  if ($('ueStatus')) body.status = $('ueStatus').value;
+  const r = await fetch('/api/admin/user/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const d = await r.json();
+  if (!r.ok) { const e = $('ueErr'); if (e) e.textContent = d.error || '保存失败'; else alert(d.error || '保存失败'); return; }
+  $('mask').classList.remove('open');
+  loadUsers();
+}
+async function openUserPw(id) {
+  const d = await (await fetch('/api/admin/users')).json();
+  const u = d.users.find(x => x.id === id);
+  if (!u) { alert('用户不存在'); return; }
+  $('modal').innerHTML = `<h3>重置密码：${esc(u.username)}（${esc(u.fullname)}）</h3>
+    <label>新密码（至少 7 位，重置后该用户所有会话失效）</label>
+    <input id="pwNew" type="text" placeholder="新密码">
+    <div class="err" id="pwErr"></div>
+    <div class="actions"><button class="secondary" onclick="$('mask').classList.remove('open')">取消</button><button onclick="doResetPw(${id})">重置</button></div>`;
+  $('mask').classList.add('open');
+}
+async function doResetPw(id) {
+  const r = await fetch('/api/admin/user/password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, password: $('pwNew').value }) });
+  const d = await r.json();
+  if (!r.ok) { const e = $('pwErr'); if (e) e.textContent = d.error || '重置失败'; return; }
+  $('mask').classList.remove('open');
+  alert(d.message || '密码已重置');
+}
+function openUserBatch() {
+  $('modal').innerHTML = `<h3>📥 批量建号</h3>
+    <p class="sub">每行一个学生：<code>编号,姓名,用户名,初始密码</code>（逗号/空格/制表符分隔；密码可留空，用下方默认密码；用户名留空则按编号匹配已有账号）</p>
+    <textarea id="ubLines" placeholder="例如：&#10;01,张三,zhangsan01,abc12345&#10;02,李四,lisi02" style="min-height:180px; font-family:monospace;"></textarea>
+    <label>默认密码（行内未提供时使用，至少 7 位）</label>
+    <input id="ubPw" type="text" placeholder="如 abc12345">
+    <div class="err" id="ubErr"></div>
+    <div class="actions"><button class="secondary" onclick="$('mask').classList.remove('open')">取消</button><button onclick="submitUserBatch()">导入</button></div>`;
+  $('mask').classList.add('open');
+}
+async function submitUserBatch() {
+  const lines = $('ubLines').value.split('\n').map(l => l.trim()).filter(Boolean);
+  const users = [];
+  for (const line of lines) {
+    const f = line.split(/[,，\t]+|\s+/);
+    users.push({ studentId: (f[0] || '').trim(), fullname: (f[1] || '').trim(), username: (f[2] || '').trim(), password: (f[3] || '').trim() });
+  }
+  if (!users.length) { $('ubErr').textContent = '没有有效行'; return; }
+  const r = await fetch('/api/admin/users/batch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ users, defaultPassword: $('ubPw').value.trim() }) });
+  const d = await r.json();
+  if (!r.ok) { $('ubErr').textContent = d.error || '导入失败'; return; }
+  $('modal').innerHTML = `<h3>📥 批量建号结果</h3>
+    <p class="sub">共 ${d.results.length} 行：✅ 新建 ${d.created} 个，⏭ 跳过 ${d.skipped} 个</p>
+    <div style="max-height:300px; overflow:auto; font-size:13px;">${d.results.map(x => `<div style="padding:3px 0; border-bottom:1px solid var(--line);">${x.status === 'created' ? '✅' : '⏭'} <b>${esc(x.fullname)}</b> <span class="sub">${esc(x.username)}${x.studentId ? ' · 编号 ' + esc(x.studentId) : ''}${x.reason ? ' · ' + esc(x.reason) : ''}</span></div>`).join('')}</div>
+    <div class="actions"><button onclick="$('mask').classList.remove('open'); loadUsers();">完成</button></div>`;
+}
+
+const TAB_LOADED = {};
+window.sendNotify = async function () {
+  const tip = $('notifyTip');
+  tip.textContent = '';
+  const pid = parseInt($('notifyPid').value, 10);
+  const text = $('notifyText').value.trim();
+  if (!pid) { tip.textContent = '请填写题目编号'; return; }
+  if (!text) { tip.textContent = '请填写通知内容'; return; }
+  const r = await fetch('/api/admin/problem/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ problemId: pid, text }) });
+  const d = await r.json();
+  if (!r.ok) { tip.textContent = d.error || '发送失败'; return; }
+  tip.textContent = `✓ 已发送给 ${d.targets} 名学生（打开过该题）`;
+};
+function switchTab(name) {
+  document.querySelectorAll('#adminArea .tab-pane').forEach(function (p) {
+    p.style.display = p.getAttribute('data-tab') === name ? 'block' : 'none';
+  });
+  document.querySelectorAll('#admTabs .tab-btn').forEach(function (b) {
+    b.classList.toggle('active', b.getAttribute('data-tab') === name);
+  });
+  if (location.hash !== '#' + name) location.hash = name;
+  if (!TAB_LOADED[name]) {
+    TAB_LOADED[name] = true;
+    if (name === 'logs') { loadLogs(); loadQueue(); }
+    else if (name === 'users') loadUsers();
+    else if (name === 'subs') { location.href = '/status.html'; } // A1-2：提交管理已由 /status.html 承担，此处无对应 pane
+    else if (name === 'problems') loadProbs();
+    else if (name === 'homework') loadHwList();
+    else if (name === 'exams') loadExams();
+    else if (name === 'contest') loadContestAdmin();
+    else if (name === 'clars') loadClars();
+    else if (name === 'help') loadHelp();
+    else if (name === 'bugs') loadBugs();
+    else if (name === 'files') loadFiles();
+  }
+}
+setInterval(function () { if (TAB_LOADED['logs']) loadQueue(); if (TAB_LOADED['help']) loadHelp(); if (TAB_LOADED['bugs']) loadBugs(); updateHelpDot(); updateBugDot(); }, 5000);
+window.addEventListener('hashchange', function () {
+  var n = location.hash.replace('#', '');
+  if (['logs','users','problems','subs','homework','exams','contest','clars','help','bugs','files'].indexOf(n) !== -1) switchTab(n);
+});
+// ---- 评测队列监控 ----
+async function loadQueue() {
+  try {
+    const d = await (await fetch('/api/admin/queue')).json();
+    $('qInfo').textContent = '运行 ' + d.runningCount + '/' + d.maxParallel + ' · 排队 ' + d.queuedCount + ' · uid池 ' + (d.judgePool || []).map((p) => p.uid + ':' + p.busy).join(' ');
+    const rows = [];
+    for (const s of (d.running || [])) rows.push('<div>▶ #' + s.id + ' ' + esc(s.username) + ' · #' + s.problemId + ' ' + esc(s.problemTitle) + ' <span class="sub">' + fmtTime(s.judgedAt || s.submittedAt) + '</span></div>');
+    for (const s of (d.queued || [])) rows.push('<div>⏳ #' + s.id + ' ' + esc(s.username) + ' · #' + s.problemId + '</div>');
+    $('qBox').innerHTML = rows.length ? rows.join('') : '<div>空闲</div>';
+  } catch (e) { /* ignore */ }
+}
+// ---- 比赛时间与封榜 ----
+const tlv = (t) => t ? new Date(t - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16) : '';
+async function loadContestAdmin() {
+  const d = await (await fetch('/api/contest/rank')).json();
+  const c = d.contest || {};
+  const f = d.freeze || {};
+  $('ctTitle').value = c.title || '';
+  $('ctStart').value = c.startAt ? tlv(c.startAt) : '';
+  $('ctEnd').value = c.endAt ? tlv(c.endAt) : '';
+  $('ctMode').value = c.mode || 'oi';
+  $('ctPen').value = c.penaltyMinutes || 20;
+  $('ctFreezeOn').checked = !!(c.freezeMinutes > 0);
+  $('ctFreezeMin').value = c.freezeMinutes > 0 ? c.freezeMinutes : 30;
+  $('ctFreezeMin').disabled = !(c.freezeMinutes > 0);
+  const st = { none: '暂无比赛', upcoming: '未开始', running: '进行中', ended: '已结束' }[d.status] || '';
+  $('ctInfo').textContent = st + (f.minutes > 0 ? ' · 封榜：结束前 ' + f.minutes + ' 分钟（管理员榜单始终实时）' : ' · 未启用封榜');
+}
+async function saveContest() {
+  const startAt = $('ctStart').value ? new Date($('ctStart').value).getTime() : 0;
+  const endAt = $('ctEnd').value ? new Date($('ctEnd').value).getTime() : 0;
+  if (!startAt || !endAt) { $('ctInfo').textContent = '请填写开始/结束时间'; return; }
+  if (endAt <= startAt) { $('ctInfo').textContent = '结束时间需晚于开始时间'; return; }
+  const r = await fetch('/api/admin/contest', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title: $('ctTitle').value, startAt, endAt, mode: $('ctMode').value, penaltyMinutes: parseInt($('ctPen').value, 10) || 20, freezeMinutes: $('ctFreezeOn').checked ? (parseInt($('ctFreezeMin').value, 10) || 30) : 0 }) });
+  const d = await r.json();
+  $('ctInfo').textContent = r.ok ? '✅ 已保存' : (d.error || '保存失败');
+  if (r.ok) loadContestAdmin();
+}
+async function clearContest() {
+  const r = await fetch('/api/admin/contest', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clear: true }) });
+  $('ctInfo').textContent = r.ok ? '已结束/清除比赛' : '操作失败';
+  if (r.ok) loadContestAdmin();
+}
+document.addEventListener('DOMContentLoaded', function () {
+  const on = $('ctFreezeOn'), mn = $('ctFreezeMin');
+  if (on && mn) on.addEventListener('change', function () { mn.disabled = !on.checked; });
+});
+// ---- 比赛澄清管理 ----
+async function loadClars() {
+  const d = await (await fetch('/api/clar')).json();
+  const list = (d.list || []).slice().reverse();
+  if (!list.length) { $('clarList').innerHTML = '暂无澄清。'; return; }
+  $('clarList').innerHTML = list.map((x) => {
+    const replied = !!x.reply;
+    return '<div style="border-bottom:1px solid rgba(128,128,128,.2); padding:10px 2px;">'
+      + '<b>' + esc(x.fullname || x.username) + '</b> <span class="sub">· ' + fmtTime(x.createdAt) + (x.problemId ? ' · 题 #' + x.problemId : '') + '</span>'
+      + '<div style="margin-top:4px; white-space:pre-wrap;">' + esc(x.text) + '</div>'
+      + (replied ? '<div style="margin-top:6px; padding:6px 10px; background:rgba(34,197,94,.08); border-left:3px solid #22c55e; border-radius:4px;"><b>已回复' + (x.public ? '（公开）' : '（私密）') + '</b> · ' + fmtTime(x.repliedAt) + '<div>' + esc(x.reply) + '</div></div>' : '')
+      + '<div style="margin-top:8px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">'
+      + '<textarea id="clrT' + x.id + '" placeholder="回复内容" style="flex:1; min-width:300px; min-height:52px; margin:0;"></textarea>'
+      + '<label class="sub" style="margin:0; white-space:nowrap;"><input type="checkbox" id="clrP' + x.id + '" ' + (x.public ? 'checked' : '') + '> 公开</label>'
+      + '<button class="secondary" onclick="replyClar(' + x.id + ')">' + (replied ? '更新回复' : '回复') + '</button>'
+      + '</div></div>';
+  }).join('');
+}
+async function replyClar(id) {
+  const r = await fetch('/api/admin/clar/reply', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id, reply: $('clrT' + id).value, public: $('clrP' + id).checked }) });
+  const d = await r.json();
+  if (!r.ok) { alert(d.error || '回复失败'); return; }
+  loadClars();
+}
+
+// ---- 代码求助管理 ----
+async function updateHelpDot() {
+  try {
+    const d = await (await fetch('/api/help/count')).json();
+    const dot = $('helpDot');
+    if (!dot) return;
+    const n = d.openCount || 0;
+    if (n > 0) {
+      dot.style.display = 'inline-block';
+      dot.textContent = String(n);
+    } else {
+      dot.style.display = 'none';
+    }
+  } catch (e) { /* 忽略 */ }
+}
+async function loadHelp() {
+  try {
+    const d = await (await fetch('/api/help')).json();
+    const list = d.list || [];
+    $('helpInfo').textContent = `待处理 ${d.openCount || 0} 条 · 共 ${list.length} 条`;
+    $('helpList').innerHTML = list.length ? list.map((r) => {
+      const isOpen = r.status === 'open';
+      return `<div style="border-bottom:1px solid rgba(128,128,128,.2); padding:10px 2px;">
+        <div><b>${esc(r.fullname || r.username)}</b> <span class="sub">· 提交 #${r.submissionId} · 题 ${r.problemId} ${esc(r.problemTitle)} · ${fmtTime(r.submittedAt)} · 求助于 ${fmtTime(r.createdAt)}</span>
+          ${isOpen ? '<span class="badge" style="background:#f59e0b;">待处理</span>' : '<span class="badge">已处理</span>'}
+          ${r.resolvedAt ? '<span class="sub">· ' + fmtTime(r.resolvedAt) + ' 由 ' + esc(r.resolvedBy || '') + ' 处理</span>' : ''}</div>
+        ${r.note ? `<div style="margin-top:4px; color:#94a3b8;">备注：${esc(r.note)}</div>` : ''}
+        <div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+          <button class="secondary" onclick="toggleHelpCode(${r.id}, ${r.submissionId})">查看代码</button>
+          <a class="secondary" style="padding:5px 10px; text-decoration:none; display:inline-block;" href="/status.html?find=${r.submissionId}">打开详情</a>
+          <button class="secondary" onclick="openMsgCompose(${r.uid},'${escAttr(r.username)}','${escAttr(r.fullname || '')}')">✉️ 回复</button>
+          ${isOpen ? `<button class="primary" onclick="resolveHelp(${r.id})">标记已处理</button>` : ''}
+        </div>
+        <pre id="helpCode${r.id}" style="display:none; margin-top:8px; background:var(--btn2); border:1px solid var(--line); border-radius:8px; padding:12px; max-height:300px; overflow:auto; font-family:'Monaco','Menlo','Consolas','Courier New',monospace; font-size:12px; white-space:pre-wrap;"></pre>
+      </div>`;
+    }).join('') : '<p class="sub">暂无代码求助。</p>';
+  } catch (e) { $('helpList').textContent = '加载失败'; }
+}
+window.toggleHelpCode = async function (id, submissionId) {
+  const pre = $('helpCode' + id);
+  if (!pre) return;
+  if (pre.style.display !== 'none') { pre.style.display = 'none'; return; }
+  pre.style.display = 'block';
+  if (pre.dataset.loaded) return;
+  pre.textContent = '加载中…';
+  const r = await fetch('/api/code/' + submissionId);
+  const txt = await r.text();
+  pre.textContent = r.ok ? txt : ('无法查看代码：' + txt);
+  if (r.ok) pre.dataset.loaded = '1';
+};
+window.resolveHelp = async function (id) {
+  if (!confirm('标记该求助为已处理？公屏将不再展示这份代码。')) return;
+  const r = await fetch('/api/admin/help/resolve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
+  const d = await r.json();
+  if (!r.ok) { alert(d.error || '操作失败'); return; }
+  loadHelp();
+  updateHelpDot();
+}
+
+// ---- Bug 反馈管理 ----
+async function updateBugDot() {
+  try {
+    const d = await (await fetch('/api/admin/bugreports/count')).json();
+    const dot = $('bugDot');
+    if (!dot) return;
+    const n = d.openCount || 0;
+    if (n > 0) {
+      dot.style.display = 'inline-block';
+      dot.textContent = String(n);
+    } else {
+      dot.style.display = 'none';
+    }
+  } catch (e) { /* 忽略 */ }
+}
+async function loadBugs() {
+  try {
+    const d = await (await fetch('/api/admin/bugreports')).json();
+    const list = d.list || [];
+    $('bugInfo').textContent = `待处理 ${d.openCount || 0} 条 · 共 ${list.length} 条`;
+    $('bugList').innerHTML = list.length ? list.map((r) => {
+      const isOpen = r.status === 'open';
+      return `<div style="border-bottom:1px solid rgba(128,128,128,.2); padding:10px 2px;">
+        <div><b>${esc(r.fullname || r.username)}</b> <span class="sub">· ${fmtTime(r.createdAt)}${r.page ? ' · 页面 ' + esc(r.page) : ''}</span>
+          ${isOpen ? '<span class="badge" style="background:#f59e0b;">待处理</span>' : '<span class="badge">已处理</span>'}
+          ${r.resolvedAt ? '<span class="sub">· ' + fmtTime(r.resolvedAt) + ' 由 ' + esc(r.resolvedBy || '') + ' 处理</span>' : ''}</div>
+        <div style="margin-top:4px; white-space:pre-wrap; color:var(--text);">${esc(r.text)}</div>
+        <div style="margin-top:8px; display:flex; gap:8px;">
+          <button class="secondary" onclick="openMsgCompose(${r.uid},'${escAttr(r.username)}','${escAttr(r.fullname || '')}')">✉️ 回复</button>
+          ${isOpen ? `<button class="primary" onclick="resolveBug(${r.id})">标记已处理</button>` : ''}
+        </div>
+      </div>`;
+    }).join('') : '<p class="sub">暂无问题反馈。</p>';
+  } catch (e) { $('bugList').textContent = '加载失败'; }
+}
+window.resolveBug = async function (id) {
+  const r = await fetch('/api/admin/bugreport/resolve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
+  const d = await r.json();
+  if (!r.ok) { alert(d.error || '操作失败'); return; }
+  loadBugs();
+  updateBugDot();
+}
+
+// ---- 教师私信 ----
+window.openMsgCompose = async function (uid, username, fullname) {
+  $('modal').innerHTML = `<h3>✉️ 发消息给 ${esc(fullname || username)}（${esc(username)}）</h3>
+    <p class="sub">支持 <code>#提交编号</code> 引用提交（如 #2083，学生端可点击跳转）与 http(s) 链接；最多 2000 字。</p>
+    <textarea id="msgText" rows="5" maxlength="2000" placeholder="请输入消息内容…" style="width:100%; box-sizing:border-box; min-height:110px;"></textarea>
+    <div class="err" id="msgErr"></div>
+    <div class="actions"><button class="secondary" onclick="$('mask').classList.remove('open')">取消</button><button onclick="sendMsg(${uid})">发送</button></div>
+    <div id="msgHistory" style="margin-top:10px;"></div>`;
+  $('mask').classList.add('open');
+  loadMsgHistory(uid);
+};
+async function loadMsgHistory(uid) {
+  const box = $('msgHistory');
+  if (!box) return;
+  const d = await (await fetch('/api/admin/messages?toUid=' + uid)).json();
+  const list = (d.list || []).slice(0, 5);
+  box.innerHTML = list.length
+    ? '<div class="sub" style="border-top:1px solid rgba(128,128,128,.2); padding-top:8px;">最近发送：</div>' + list.map((m) =>
+        `<div class="sub" style="padding:4px 0; font-size:12px; border-bottom:1px dashed rgba(128,128,128,.15);">${fmtTime(m.createdAt)} · ${esc(m.text.slice(0, 60))}${m.text.length > 60 ? '…' : ''}${m.read ? '（已读）' : ''}</div>`).join('')
+    : '';
+}
+window.sendMsg = async function (uid) {
+  const text = $('msgText').value.trim();
+  if (!text) { $('msgErr').textContent = '请填写消息内容'; return; }
+  const r = await fetch('/api/admin/message', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ toUid: uid, text }) });
+  const d = await r.json();
+  if (!r.ok) { $('msgErr').textContent = d.error || '发送失败'; return; }
+  $('msgText').value = '';
+  $('msgErr').textContent = '';
+  loadMsgHistory(uid);
+};
+
+function load() {
+  if (TAB_LOADED['subs']) loadSubs();
+  if (TAB_LOADED['problems']) loadProbs();
+  if (TAB_LOADED['homework']) loadHwList();
+  if (TAB_LOADED['exams']) loadExams();
+  if (TAB_LOADED['help']) loadHelp();
+  if (TAB_LOADED['bugs']) loadBugs();
+  if (TAB_LOADED['files']) loadFiles();
+}
+async function loadSubs() {
+  const d = await (await fetch('/api/status?page=1&size=200')).json(); // 服务端分页（size≤200 为服务端上限，超过会回退全量）
+  for (const p of (d.problems || [])) testCountMap[p.id] = p.testCount;
+  const rows = $('rows');
+  rows.innerHTML = '';
+  if (!d.list.length) { rows.innerHTML = '<tr><td colspan="10" class="sub">还没有提交</td></tr>'; }
+  for (const s of d.list) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>#${s.id}</td><td class="sub">${esc(s.problemId)} · ${esc(s.problemTitle)}</td><td>${esc(s.name)}${s.hidden ? ' <span class="badge">已隐藏</span>' : ''}</td><td>${esc(s.std)}</td><td class="sub">${esc(s.ip || '—')}</td><td>${statusHtml(s)}</td>
+      <td>${s.summary && s.summary.timeMs != null ? (s.summary.timeMs / 1000).toFixed(2) + 's' : '—'}</td>
+      <td class="sub">${fmtTime(s.submittedAt)}</td>
+      <td style="text-align:right; white-space:nowrap;"><button class="secondary" onclick="viewCode(${s.id})">查看代码</button> <button class="secondary" onclick="rejudgeSub(${s.id})">重测</button></td>
+      <td>${s.hidden
+        ? '<button class="secondary" onclick="toggleHide(' + s.id + ',false)">显示</button>'
+        : '<button class="secondary" onclick="toggleHide(' + s.id + ',true)">隐藏</button>'}</td>`;
+    rows.appendChild(tr);
+  }
+  $('info').textContent = `最近 ${d.list.length} 份 / 共 ${d.total != null ? d.total : d.list.length} 份提交`;
+}
+async function loadProbs() {
+  const d = await (await fetch('/api/status?page=1&size=1')).json(); // 仅取题目元数据（problems 字段始终返回全量）
+  const pr = $('probRows');
+  pr.innerHTML = '';
+  for (const p of d.problems) {
+    const isSuper = ME && ME.role === 'superadmin';
+    const isOwner = ME && ME.role === 'admin' && p.owner && p.owner === ME.username;
+    const canDelete = isSuper || isOwner;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td><b>${p.id}</b></td><td>${esc(p.title)}${p.judgeable === false ? ' <span class="badge">仅题面</span>' : ''}${p.hidden ? ' <span class="badge">已隐藏</span>' : ''}${p.owner ? ' <span class="sub" title="上传人">· ' + esc(p.owner) + '</span>' : ''}</td><td>${p.judgeable === false ? '—' : p.timeLimitSec + 's'}</td><td>${p.judgeable === false ? '—' : Math.round(p.memLimitKb/1024) + 'MB'}</td>
+      <td style="text-align:right; white-space:nowrap;">${p.judgeable === false ? '—' : (p.rankEnabled === false ? '<button class="secondary" onclick="toggleRank(' + p.id + ',true)">参与</button>' : '<button class="secondary" onclick="toggleRank(' + p.id + ',false)">不参与</button>')}</td>
+      <td style="text-align:right; white-space:nowrap;"><button class="secondary" onclick="editSolution(${p.id})">编辑题解</button> <button class="secondary" onclick="editScoring(${p.id})" title="OI 子任务部分分配置">⚖️ 子任务</button></td>
+      <td style="text-align:right; white-space:nowrap;"><button class="secondary" onclick="editProblem(${p.id})">编辑</button></td>
+      <td style="text-align:right; white-space:nowrap;">${p.hidden ? '<button class="secondary" onclick="toggleProblem(' + p.id + ',false)">显示</button>' : '<button class="secondary" onclick="toggleProblem(' + p.id + ',true)">隐藏</button>'}</td>
+      <td style="text-align:right; white-space:nowrap;">${canDelete ? '<button class="danger" onclick="delProblem(' + p.id + ')">删除</button>' : ''}</td>`;
+    pr.appendChild(tr);
+  }
+}
+window.delProblem = async function (pid) {
+  if (!confirm('⚠️ 确定删除题目 #' + pid + ' 吗？\n\n将同时删除：该题的全部提交记录、测试数据、题解，并移出编程作业。此操作不可恢复！')) return;
+  if (!confirm('再次确认：删除题目 #' + pid + '？')) return;
+  const r = await fetch('/api/admin/problem/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ problemId: pid }) });
+  const d = await r.json();
+  if (!r.ok) { alert(d.error || '删除失败'); return; }
+  alert('已删除题目 #' + pid + (d.removedSubmissions ? '，同时清理 ' + d.removedSubmissions + ' 条提交记录' : ''));
+  load();
+};
+
+window.editProblem = async function (id) {
+  const d = await (await fetch('/api/problem?id=' + id)).json();
+  const fio = d.fileIO || {};
+  $('modal').innerHTML = `<h3>编辑题目 #${id} ${esc(d.title)}</h3>
+    <label style="display:block; margin-bottom:6px;">标题</label>
+    <input id="edTitle" value="${esc(d.title)}" maxlength="80" style="margin-bottom:10px;">
+    <label style="display:block; margin-bottom:6px;">知识点标签（逗号或空格分隔，如：哈希 线段树）</label>
+    <input id="edTags" value="${escAttr((d.tags || []).join(' '))}" maxlength="200" style="margin-bottom:10px;">
+    <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px;">
+      <label>时限（秒）<br><input id="edTl" type="number" step="0.1" min="0.1" max="60" value="${d.timeLimitSec}" style="width:90px;"></label>
+      <label>内存（KB）<br><input id="edMl" type="number" step="1024" min="1024" max="8388608" value="${d.memLimitKb}" style="width:120px;"></label>
+      <label>文件IO 输入名（空=标准IO）<br><input id="edFioIn" value="${escAttr(fio.in || '')}" maxlength="60" style="width:130px;"></label>
+      <label>文件IO 输出名<br><input id="edFioOut" value="${escAttr(fio.out || '')}" maxlength="60" style="width:130px;"></label>
+    </div>
+    <div style="margin-bottom:10px;">
+      <label style="display:block; margin-bottom:6px;">SPJ checker.cpp（testlib，上传后自动编译；留空并「清除」可移除）</label>
+      <input type="file" id="edChecker" accept=".cpp" style="width:auto;">
+      <button class="secondary" onclick="uploadChecker(${id}, 0)">上传 checker</button>
+      <button class="secondary" onclick="uploadChecker(${id}, 1)">清除 checker</button>
+      <span class="sub">当前：${d.checker ? '已启用' : '未启用（文本比对）'}</span>
+    </div>
+    <label style="display:block; margin-bottom:6px;">题目描述（Markdown）</label>
+    <textarea id="edDesc" rows="14" style="font-family:'Monaco','Menlo','Consolas','Courier New',monospace; min-height:280px;">${esc(d.descriptionText || '')}</textarea>
+    <div class="actions">
+      <button onclick="saveProblem(${id})">保存</button>
+      <button class="secondary" onclick="$('mask').classList.remove('open')">取消</button>
+    </div>`;
+  $('mask').classList.add('open');
+};
+window.uploadChecker = async function (id, clear) {
+  if (!clear && !$('edChecker').files.length) { alert('请选择 checker.cpp 文件'); return; }
+  const fd = new FormData();
+  fd.append('problemId', String(id));
+  if (clear) fd.append('clear', '1'); else fd.append('file', $('edChecker').files[0]);
+  const r = await fetch('/api/admin/problem/checker', { method: 'POST', body: fd });
+  const d = await r.json();
+  if (!r.ok) { alert(d.error || '操作失败'); return; }
+  alert(clear ? 'checker 已清除，恢复文本比对' : (d.checker ? 'checker 上传成功并已编译启用' : '上传成功但编译失败（详见服务器日志），暂回退文本比对'));
+  $('mask').classList.remove('open');
+  load();
+};
+window.saveProblem = async function (id) {
+  const fioIn = $('edFioIn').value.trim();
+  const fioOut = $('edFioOut').value.trim();
+  const body = { problemId: id, title: $('edTitle').value, description: $('edDesc').value, tags: $('edTags').value,
+    timeLimitSec: parseFloat($('edTl').value) || 1, memLimitKb: parseInt($('edMl').value, 10) || 262144,
+    fileIO: (fioIn && fioOut) ? { in: fioIn, out: fioOut } : null };
+  const r = await fetch('/api/admin/problem/edit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const d = await r.json();
+  if (!r.ok) { alert(d.error || '保存失败'); return; }
+  $('mask').classList.remove('open');
+  load();
+};
+async function toggleHide(id, hidden) {
+  const r = await fetch('/api/admin/hide', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, hidden }) });
+  const d = await r.json();
+  if (!r.ok) { alert(d.error || '操作失败'); return; }
+  load();
+}
+async function rejudgeSub(id) {
+  if (!confirm('重测提交 #' + id + '？（保持提交编号，覆盖原评测结果）')) return;
+  const r = await fetch('/api/admin/rejudge', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: [id] }) });
+  const d = await r.json();
+  if (!r.ok) { alert(d.error || '重测失败'); return; }
+  alert('已加入评测队列');
+  loadSubs();
+}
+
+function showPkgHelp() {
+  $('modal').innerHTML = `<h3>📦 压缩包格式说明</h3>
+    <p class="sub">支持 <code>.zip</code> 或 <code>.tar.gz</code>，格式如下：</p>
+    <table style="font-size:13px;">
+      <thead><tr><th>文件</th><th>要求</th><th>说明</th></tr></thead>
+      <tbody>
+        <tr><td><code>description.md</code></td><td>必须</td><td>题目描述（Markdown）</td></tr>
+        <tr><td><code>data/</code></td><td>可选</td><td>测试数据，同名 <code>.in</code>/<code>.out</code> 成对，如 <code>1.in</code>+<code>1.out</code></td></tr>
+        <tr><td><code>sample.in</code> / <code>sample.out</code></td><td>可选</td><td>样例输入 / 样例输出</td></tr>
+        <tr><td><code>solution.md</code></td><td>可选</td><td>题解（Markdown）</td></tr>
+        <tr><td><code>problem.json</code></td><td>可选</td><td>元数据：<code>{"title":"题目名","timeLimitSec":1.5,"memLimitKb":2097152}</code></td></tr>
+      </tbody>
+    </table>
+    <p class="sub">标题默认取压缩包名；不含 <code>data/</code> 即为「仅题面」题目。示例：<a class="btn-link" style="padding:3px 10px; font-size:12px;" href="/A+BProblem.zip" download>A+BProblem.zip</a></p>
+    <div class="actions"><button onclick="$('mask').classList.remove('open')">关闭</button></div>`;
+  $('mask').classList.add('open');
+}
+async function uploadPkg() {
+  const tip = $('pkgTip'), err = $('pkgErr');
+  tip.textContent = ''; err.textContent = '';
+  const file = $('pkgFile').files[0];
+  if (!file) { err.textContent = '请选择 .zip 或 .tar.gz 压缩包'; return; }
+  const fd = new FormData();
+  fd.append('file', file, file.name);
+  try {
+    const r = await fetch('/api/admin/problem/package', { method: 'POST', body: fd });
+    const d = await r.json();
+    if (!r.ok) { err.textContent = d.error || '创建失败'; return; }
+    tip.textContent = `✓ 已创建题目 ${d.id}：${d.title}（${d.judgeable ? d.testCount + ' 组测试数据，可评测' : '仅题面'}）`;
+    $('pkgFile').value = '';
+    load();
+  } catch (e) { err.textContent = '网络错误: ' + e.message; }
+}
+
+async function addProblem() {
+  const err = $('addErr'), tip = $('addTip');
+  err.textContent = ''; tip.textContent = '';
+  const title = $('ptitle').value.trim();
+  const desc = $('pdesc').value.trim();
+  const files = $('pdata').files;
+  if (!title) { err.textContent = '请填写题目名称'; return; }
+  if (!desc) { err.textContent = '请填写题目描述'; return; }
+  const fd = new FormData();
+  fd.append('title', title);
+  fd.append('description', desc);
+  fd.append('solution', $('psol').value.trim());
+  for (const f of files) fd.append('data', f, f.name);
+  $('addBtn').disabled = true;
+  $('addBtn').textContent = '上传中…';
+  try {
+    const r = await fetch('/api/admin/problem', { method: 'POST', body: fd });
+    const d = await r.json();
+    if (!r.ok) { err.textContent = d.error || '添加失败'; return; }
+    tip.textContent = `成功添加题目 ${d.id}（${d.title}），共 ${d.testCount} 组测试数据`;
+    $('ptitle').value = ''; $('pdesc').value = ''; $('psol').value = ''; $('pdata').value = '';
+    load();
+  } catch (e) { err.textContent = '网络错误: ' + e.message; }
+  finally { $('addBtn').disabled = false; $('addBtn').textContent = '添加题目'; }
+}
+$('addBtn').addEventListener('click', addProblem);
+
+async function toggleRank(problemId, rankEnabled) {
+  const r = await fetch('/api/admin/problem/rank', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ problemId, rankEnabled }) });
+  const d = await r.json();
+  if (!r.ok) { alert(d.error || '操作失败'); return; }
+  loadProbs();
+}
+async function toggleProblem(problemId, hidden) {
+  const r = await fetch('/api/admin/problem/hide', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ problemId, hidden }) });
+  const d = await r.json();
+  if (!r.ok) { alert(d.error || '操作失败'); return; }
+  load();
+}
+async function editSolution(problemId) {
+  const d = await (await fetch(`/api/problem?id=${problemId}`)).json();
+  $('modal').innerHTML = `<h3>编辑题解（题目 ${problemId} ${esc(d.title)}）</h3>
+    <textarea id="solInput" placeholder="# 题解&#10;思路 / 代码..." style="min-height:260px; width:100%;">${esc(d.solutionText || '')}</textarea>
+    <div class="err" id="solErr"></div>
+    <div class="actions">
+      <button onclick="saveSolution(${problemId})">保存题解</button>
+      <button class="secondary" onclick="$('mask').classList.remove('open')">取消</button>
+    </div>`;
+  $('mask').classList.add('open');
+}
+async function saveSolution(problemId) {
+  const content = $('solInput').value;
+  const r = await fetch('/api/admin/solution', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ problemId, content }) });
+  const d = await r.json();
+  if (!r.ok) { $('solErr').textContent = d.error || '保存失败'; return; }
+  $('mask').classList.remove('open');
+  load();
+}
+
+async function loadHwList() {
+  const d = await (await fetch('/api/homeworks')).json();
+  renderSessAdmin(d.sessions, d.session);
+  const sel = $('hwSel');
+  sel.innerHTML = '';
+  for (const h of d.homeworks) {
+    const opt = document.createElement('option');
+    opt.value = h.id;
+    opt.textContent = h.title;
+    sel.appendChild(opt);
+  }
+  if (d.homeworks.length) loadHwAnswers();
+  else $('hwAnswers').innerHTML = '<p class="sub">暂无 txt作业</p>';
+  loadHwAdmin(d.homeworks);
+}
+function renderSessAdmin(sessions, cur) {
+  const box = $('sessAdmin');
+  if (!box) return;
+  box.innerHTML = '';
+  // 新建期次按钮（P0：此前无任何接口，只能停服手改 homework.json）
+  const mk = document.createElement('button');
+  mk.className = 'btn-ok';
+  mk.textContent = '➕ 新建期次';
+  mk.style.cssText = 'padding:4px 14px; margin:0 0 8px;';
+  mk.onclick = () => createSession();
+  box.appendChild(mk);
+  if (!sessions || !sessions.length) { box.appendChild(document.createTextNode('暂无历史期次')); return; }
+  for (const s of sessions) {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex; align-items:center; gap:10px; padding:5px 0; border-bottom:1px dashed var(--line);';
+    const name = document.createElement('span');
+    name.textContent = (s.id === 0 ? '⭐ ' : '') + s.name;
+    if (s.id === cur) name.style.fontWeight = '700';
+    row.appendChild(name);
+    // 导出该期次题目（题面+样例+提示+参考代码）
+    const exp = document.createElement('button');
+    exp.className = 'secondary';
+    exp.textContent = '📥 导出题目';
+    exp.style.cssText = 'padding:3px 12px; font-size:12px;';
+    exp.onclick = () => exportSession(s.id, s.name);
+    row.appendChild(exp);
+    // 导入线下收集的 OI 代码包（编号/题目名/题目名.cpp），成绩计入该期次
+    const imp = document.createElement('button');
+    imp.className = 'secondary';
+    imp.textContent = '📦 导入OI代码';
+    imp.title = '线下收集的「考生编号/题名/题名.cpp」代码包：解析匹配后导入评测，成绩计入该期次';
+    imp.style.cssText = 'padding:3px 12px; font-size:12px;';
+    imp.onclick = () => openHwOfflineImport(s.id, s.name);
+    row.appendChild(imp);
+    // 期次改名（当前期与历史期均可）
+    const rn = document.createElement('button');
+    rn.className = 'secondary';
+    rn.textContent = '✏️ 改名';
+    rn.style.cssText = 'padding:3px 12px; font-size:12px;';
+    rn.onclick = () => renameSession(s.id, s.name);
+    row.appendChild(rn);
+    if (s.id === 0) {
+      const tag = document.createElement('span');
+      tag.className = 'badge';
+      tag.style.cssText = 'background:var(--accent); color:#fff;';
+      tag.textContent = '当前';
+      row.appendChild(tag);
+    } else {
+      const btn = document.createElement('button');
+      btn.className = 'secondary';
+      btn.textContent = '设为当前期次';
+      btn.dataset.name = s.name;
+      btn.style.cssText = 'padding:3px 12px; font-size:12px;';
+      btn.onclick = () => setCurrentSession(s.id, btn.dataset.name);
+      row.appendChild(btn);
+      // 删除空历史期次
+      const del = document.createElement('button');
+      del.className = 'secondary';
+      del.textContent = '🗑 删除';
+      del.style.cssText = 'padding:3px 12px; font-size:12px; color:#c0392b; margin-left:auto;';
+      del.onclick = () => deleteSession(s.id, s.name);
+      row.appendChild(del);
+    }
+    box.appendChild(row);
+  }
+}
+window.createSession = function () {
+  const name = prompt('新期次名称（例：模考·week3）');
+  if (!name) return;
+  fetch('/api/admin/session/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) })
+    .then((r) => r.json()).then((d) => { if (d.error) { alert(d.error); return; } location.reload(); });
+};
+window.renameSession = function (sid, name) {
+  const nn = prompt('期次新名称：', name);
+  if (!nn || nn === name) return;
+  fetch('/api/admin/session/rename', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session: sid, name: nn }) })
+    .then((r) => r.json()).then((d) => { if (d.error) { alert(d.error); return; } location.reload(); });
+};
+window.deleteSession = function (sid, name) {
+  if (!confirm(`确定删除历史期次「${name}」吗？\n\n仅空期次可删除；含题目/作业的期次无法删除。`)) return;
+  fetch('/api/admin/session/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session: sid }) })
+    .then((r) => r.json()).then((d) => { if (d.error) { alert(d.error); return; } location.reload(); });
+};
+window.setCurrentSession = async function (sid, name) {
+  if (!confirm(`确定将「${name}」设为当前期次吗？\n\n学生作业页与排行榜将默认展示该期次；原当前期次将归档为历史期。`)) return;
+  const r = await fetch('/api/admin/session/current', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session: sid }) });
+  const d = await r.json();
+  if (!r.ok) { alert(d.error || '操作失败'); return; }
+  location.reload();
+};
+// ---- 作业期次离线 OI 代码导入（考生编号/题名/题名.cpp，编号如 GD-S00186）----
+let HW_OFF = null;
+window.openHwOfflineImport = function (session, name) {
+  HW_OFF = null;
+  $('modal').innerHTML = `<h3>📦 期次 OI 代码导入</h3>
+    <p class="sub">导入「${esc(name)}」的线下收集代码：目录结构 <code>考生编号/题名/题名.cpp</code>（编号如 <code>GD-S00186</code>，打包 .zip/.tar.gz，中文/GBK 文件名自动识别）。上传解析后确认「编号→账号」「题名→该期次编程题」匹配，一键导入评测：成绩计入该期次排行榜与作业页。</p>
+    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+      <input type="file" id="hwOffFile" accept=".zip,.tar.gz,.tgz" style="width:auto;">
+      <button onclick="parseHwZip(${session})">解析压缩包</button>
+      <span class="sub" id="hwOffTip"></span>
+    </div>
+    <div class="err" id="hwOffErr"></div>
+    <div id="hwOffPreview" style="max-height:52vh; overflow:auto;"></div>
+    <div class="actions" id="hwOffActions" style="display:none;">
+      <label class="sub" style="display:flex; align-items:center; gap:6px; margin-right:auto;">
+        <input type="checkbox" id="hwOffCreate" style="width:auto;"> 为未匹配编号创建账号，默认密码
+        <input type="text" id="hwOffPw" placeholder="至少 7 位" style="width:130px;">
+      </label>
+      <button onclick="applyHwImport(${session})">导入并评测</button>
+      <button class="secondary" onclick="$('mask').classList.remove('open')">关闭</button>
+    </div>`;
+  $('mask').classList.add('open');
+};
+window.parseHwZip = async function (session) {
+  const f = $('hwOffFile').files[0];
+  const err = $('hwOffErr'), tip = $('hwOffTip');
+  err.textContent = ''; tip.textContent = '';
+  if (!f) { err.textContent = '请选择压缩包'; return; }
+  tip.textContent = '解析中…';
+  const fd = new FormData();
+  fd.append('session', String(session));
+  fd.append('file', f, f.name);
+  const r = await fetch('/api/admin/homework/import-zip', { method: 'POST', body: fd });
+  const d = await r.json();
+  tip.textContent = '';
+  if (!r.ok) { err.textContent = d.error || '解析失败'; return; }
+  HW_OFF = d;
+  let html = `<div class="sub" style="margin:10px 0 6px;">期次「${esc(d.sessionName)}」 · 共 ${d.students.length} 个编号 / ${d.students.reduce((a, s) => a + s.problems.length, 0)} 份代码 · 未匹配编号 ${d.unmatchedStudents} 个 · 未匹配题目 ${d.unmatchedProblems} 道</div>`;
+  for (const s of d.students) {
+    const uid = s.matched ? s.matched.uid : 0;
+    html += `<div class="off-stu" data-folder="${escAttr(s.folder)}" style="border:1px solid var(--line); border-radius:8px; padding:8px 10px; margin:6px 0;">
+      <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+        <b>📁 ${esc(s.folder)}</b>
+        ${s.matched ? `<span class="badge" style="background:var(--accent); color:#fff;">已匹配 ${esc(s.matched.username)}（${esc(s.matched.fullname)}）</span>` : '<span class="badge" style="background:#ea580c; color:#fff;">未匹配</span>'}
+        <select class="offUid" style="max-width:280px;">
+          ${s.matched ? '' : '<option value="0">— 不导入（或勾选自动创建）—</option>'}
+          ${d.allStudents.map((u) => `<option value="${u.uid}"${u.uid === uid ? ' selected' : ''}>${esc(u.username)}（${esc(u.fullname || '')}${u.studentId ? ' / 学号' + esc(u.studentId) : ''}）</option>`).join('')}
+        </select>
+      </div>
+      ${s.problems.map((p) => `<div class="off-prob" data-file="${escAttr(p.file)}" data-std="${esc(p.std)}" style="display:flex; gap:8px; align-items:center; margin-top:6px; flex-wrap:wrap;">
+        <span class="sub">📄 ${esc(p.folder)}</span>
+        <select class="offPid" style="max-width:320px;">
+          ${d.sesProblems.map((pp) => `<option value="${pp.id}"${pp.id === p.matchedPid ? ' selected' : ''}>#${pp.id} ${esc(pp.title)}</option>`).join('')}
+          ${p.matchedPid ? '' : '<option value="0" selected>— 未匹配，请选择题目 —</option>'}
+        </select>
+        <span class="sub">${esc(p.file.split('/').pop())} · ${p.std} · ${p.size} 字节</span>
+        ${p.head ? `<pre class="code" style="flex-basis:100%; max-height:54px; overflow:hidden; margin:2px 0 0; font-size:11px;">${esc(p.head)}</pre>` : ''}
+      </div>`).join('')}
+    </div>`;
+  }
+  if (d.warnings && d.warnings.length) html += `<div class="err" style="margin-top:8px;">⚠ ${d.warnings.slice(0, 10).map(esc).join('<br>')}</div>`;
+  $('hwOffPreview').innerHTML = html;
+  $('hwOffActions').style.display = 'flex';
+};
+window.applyHwImport = async function (session) {
+  if (!HW_OFF) { alert('请先解析压缩包'); return; }
+  const err = $('hwOffErr');
+  err.textContent = '';
+  const students = [];
+  document.querySelectorAll('#hwOffPreview .off-stu').forEach((row) => {
+    const uid = parseInt(row.querySelector('.offUid').value, 10) || 0;
+    const problems = [];
+    row.querySelectorAll('.off-prob').forEach((pr) => {
+      problems.push({ file: pr.getAttribute('data-file'), pid: parseInt(pr.querySelector('.offPid').value, 10) || 0, std: pr.getAttribute('data-std') });
+    });
+    students.push({ folder: row.getAttribute('data-folder'), uid, problems });
+  });
+  const body = { token: HW_OFF.token, session, students, createUsers: $('hwOffCreate').checked, defaultPassword: $('hwOffPw').value.trim() };
+  const r = await fetch('/api/admin/homework/import-zip/apply', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const d = await r.json();
+  if (!r.ok) { err.textContent = d.error || '导入失败'; return; }
+  let msg = '✓ 已导入 ' + d.created + ' 份提交，正在评测（跳过重复 ' + d.skipped + ' 份）';
+  if (d.createdUsers && d.createdUsers.length) msg += '\n新建账号：' + d.createdUsers.join('、');
+  if (d.errors && d.errors.length) msg += '\n跳过：' + d.errors.join('；') + (d.errorsMore ? ' 等' : '');
+  alert(msg);
+  $('mask').classList.remove('open');
+  loadHwList();
+};
+window.exportSession = async function (sid, name) {
+  try {
+    const r = await fetch('/api/admin/export-session?session=' + sid);
+    if (!r.ok) { const d = await r.json().catch(() => ({})); alert(d.error || '导出失败'); return; }
+    const blob = await r.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = (name || ('期次' + sid)) + '.md';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(a.href);
+  } catch (e) { alert('导出失败: ' + e.message); }
+};
+function toggleNewHwForm() {
+  const f = $('newHwForm');
+  f.style.display = f.style.display === 'none' ? 'block' : 'none';
+}
+async function createHw() {
+  const tip = $('nhTip');
+  tip.textContent = '';
+  const title = $('nhTitle').value.trim();
+  const questions = $('nhQuestions').value.split('\n').map((s) => s.trim()).filter(Boolean);
+  if (!title) { tip.textContent = '请填写标题'; return; }
+  if (!questions.length) { tip.textContent = '请至少填写一个问题'; return; }
+  const startAtVal = $('nhStart').value;
+  const startAt = startAtVal ? new Date(startAtVal).getTime() : Date.now();
+  const r = await fetch('/api/admin/homework', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title, questions, startAt, hidden: $('nhHidden').checked, allowViewOthers: $('nhView').checked }) });
+  const d = await r.json();
+  if (!r.ok) { tip.textContent = d.error || '创建失败'; return; }
+  tip.textContent = '✓ 已创建 #' + d.id;
+  $('nhTitle').value = ''; $('nhQuestions').value = ''; $('nhStart').value = '';
+  $('newHwForm').style.display = 'none';
+  loadHwList();
+}
+async function toggleHwHidden(id, hidden) {
+  const r = await fetch('/api/admin/homework/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, hidden }) });
+  const d = await r.json();
+  if (!r.ok) { alert(d.error || '操作失败'); return; }
+  loadHwList();
+}
+async function toggleHwStar(id, star) {
+  const r = await fetch('/api/admin/homework/star', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, star }) });
+  const d = await r.json();
+  if (!r.ok) { alert(d.error || '操作失败'); return; }
+  loadHwList();
+}
+async function toggleHwView(id, allow) {
+  const r = await fetch('/api/admin/homework/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, allowViewOthers: allow }) });
+  const d = await r.json();
+  if (!r.ok) { alert(d.error || '操作失败'); return; }
+  loadHwList();
+}
+function loadHwAdmin(hws) {
+  const box = $('hwAdmin');
+  box.innerHTML = '';
+  if (!hws.length) { box.innerHTML = '<p class="sub">暂无 txt作业</p>'; return; }
+  for (const h of hws) {
+    const tr = document.createElement('div');
+    tr.style.cssText = 'display:flex; align-items:center; gap:12px; flex-wrap:wrap; padding:8px 0; border-bottom:1px solid var(--line);';
+    tr.innerHTML = `<b>#${h.id}</b> ${esc(h.title)}${h.hidden ? ' <span class="badge">已隐藏</span>' : ''}
+      <span class="sub">${h.questionCount} 题${h.allowViewOthers ? ' · 开放他人答案查看' : ''}</span>
+      <span style="flex:1"></span>
+      <button class="secondary" style="padding:3px 12px; font-size:12px;" onclick="toggleHwStar(${h.id},${!h.star})" title="${h.star ? '取消必做' : '标记为必做（进入排行榜，审核通过得 100 分）'}">${h.star ? '★ 必做' : '☆ 设为必做'}</button>
+      <button class="${h.hidden ? 'btn-ok' : 'btn-warn'}" style="padding:3px 12px; font-size:12px;" onclick="toggleHwHidden(${h.id},${!h.hidden})" title="${h.hidden ? '点击后开放' : '点击后隐藏'}">${h.hidden ? '开放' : '隐藏'}</button>
+      <button class="secondary" style="padding:3px 12px; font-size:12px;" onclick="toggleHwView(${h.id},${!h.allowViewOthers})">${h.allowViewOthers ? '关闭他人查看' : '允许查看他人答案'}</button>`;
+    box.appendChild(tr);
+  }
+}
+async function loadHwAnswers() {
+  const hwId = $('hwSel').value;
+  if (!hwId) { $('hwAnswers').innerHTML = ''; return; }
+  const d = await (await fetch(`/api/homework/answers?homeworkId=${hwId}`)).json();
+  // 按学生分组（保留每个历史版本）
+  const groups = {};
+  for (const a of d.answers) { (groups[a.uid] = groups[a.uid] || []).push(a); }
+  let html = `<p class="sub">${esc(d.title)} · ${Object.keys(groups).length} 人已提交</p>`;
+  if (!Object.keys(groups).length) { html += '<p class="sub">还没有人提交答案</p>'; $('hwAnswers').innerHTML = html; return; }
+  // 最后交的排前面（以每人最新提交时间为准，降序）
+  const uids = Object.keys(groups).sort((a, b) =>
+    groups[b][groups[b].length - 1].submittedAt - groups[a][groups[a].length - 1].submittedAt);
+  for (const uid of uids) {
+    const vers = groups[uid].sort((a, b) => a.submittedAt - b.submittedAt);
+    const a = vers[vers.length - 1];
+    const st = a.gradeStatus || 'pending';
+    const tag = st === 'graded'
+      ? (a.score >= 100 ? '<span class="badge hw-full">' + a.score + '分</span>'
+                        : '<span class="badge hw-score">' + a.score + '分</span>')
+      : '<span class="badge hw-pending">待审核</span>';
+    html += `<div style="border:1px solid var(--line); border-radius:8px; padding:12px; margin:10px 0;">
+      <div class="sub"><b>${esc(a.username)}</b> · ${esc(a.ip || '—')} · ${fmtTime(a.submittedAt)} · v${a.version || vers.length} ${tag}
+        <span style="float:right; display:flex; gap:6px; align-items:center;">
+          <button style="padding:2px 12px; font-size:12px; background:#fecaca; color:#7f1d1d; border:none; border-radius:6px; cursor:pointer;" onclick="gradeHw(${a.homeworkId},${a.uid},0)">驳回</button>
+          <button style="padding:2px 12px; font-size:12px; background:#fde68a; color:#78350f; border:none; border-radius:6px; cursor:pointer;" onclick="gradeHw(${a.homeworkId},${a.uid},50)">待完善</button>
+          <button style="padding:2px 12px; font-size:12px; background:#bbf7d0; color:#14532d; border:none; border-radius:6px; cursor:pointer;" onclick="gradeHw(${a.homeworkId},${a.uid},100)">通过</button>
+        </span></div>
+      <div style="margin-top:8px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+        ${a.comment
+          ? (a.commentPublic
+              ? `<span style="font-size:13px; background:var(--btn2); padding:2px 8px; border-radius:6px;"><b>教师评语</b>：${(a.commentHtml || esc(a.comment)).replace(/<p[^>]*>/g, '').replace(/<\/p>/g, ' ')}</span>
+                 <span style="font-size:12px;">${a.commentRead ? '<span style="color:#16a34a;">【已读】</span>' : '<span style="color:#ea580c;">【未读】</span>'}</span>`
+              : `<button class="secondary" style="padding:3px 12px; font-size:12px;" onclick="viewComment(${a.homeworkId},${a.uid})">💬 查看评语</button>
+                 <span style="font-size:12px;">${a.commentRead ? '<span style="color:#16a34a;">【已读】</span>' : '<span style="color:#ea580c;">【未读】</span>'}</span>`)
+          : `<span style="font-size:12px; color:var(--muted);">尚无评语</span>`}
+        <button class="secondary" style="padding:3px 12px; font-size:12px;" onclick="editComment(${a.homeworkId},${a.uid},'${esc(a.comment || '').replace(/'/g, "\\'")}',${a.commentPublic ? 1 : 0})">✍️ ${a.comment ? '编辑评语' : '写评语'}</button>
+      </div>`;
+    d.questions.forEach((q, i) => {
+      const ans = a.answers && a.answers[i] ? a.answers[i] : '';
+      const body = ans ? (a.answerHtml && a.answerHtml[i] ? a.answerHtml[i] : esc(ans)) : '<span class="sub">（未作答）</span>';
+      html += `<div style="margin-top:8px;"><span style="font-size:13px;">${i + 1}. ${esc(q)}</span><br>
+        <div class="hw-ans" style="font-size:13px; color:var(--text);">${body}</div>
+        <button class="hw-ans-toggle secondary" onclick="toggleAns(this)" style="display:none; margin-top:4px; padding:2px 10px; font-size:12px;">点击查看全文</button></div>`;
+    });
+    if (vers.length > 1) {
+      html += `<details style="margin-top:8px;"><summary class="sub" style="cursor:pointer;">历史版本（${vers.length - 1} 个）</summary>`;
+      for (let vi = vers.length - 2; vi >= 0; vi--) {
+        const h = vers[vi];
+        html += `<div style="border-top:1px dashed var(--line); margin-top:6px; padding-top:6px;">
+          <div class="sub"><b>v${h.version || (vi + 1)}</b> · ${fmtTime(h.submittedAt)} ${h.score == null ? '' : ' · ' + h.score + '分'}</div>`;
+        d.questions.forEach((q, i) => {
+          const ans = h.answers && h.answers[i] ? h.answers[i] : '';
+          html += `<div style="margin-top:4px;"><span style="font-size:12px;">${i + 1}. ${esc(q)}</span><br>
+            <div class="hw-ans" style="font-size:12px; color:var(--text);">${ans ? (h.answerHtml && h.answerHtml[i] ? h.answerHtml[i] : esc(ans)) : '<span class="sub">（未作答）</span>'}</div></div>`;
+        });
+        if (h.comment) html += `<div class="sub" style="margin-top:4px;">💬 评语：${h.commentHtml || esc(h.comment)}</div>`;
+        html += '</div>';
+      }
+      html += '</details>';
+    }
+    html += '</div>';
+  }
+  $('hwAnswers').innerHTML = html;
+  if (window.renderMathInElement) {
+    try { renderMathInElement($('hwAnswers'), { delimiters: [{ left: '$$', right: '$$', display: true }, { left: '$', right: '$', display: false }], throwOnError: false }); } catch (e) { /* 忽略 */ }
+  }
+  initAnsFold($('hwAnswers'));
+}
+window.viewComment = function (homeworkId, uid) {
+  fetch('/api/homework/answers?homeworkId=' + homeworkId).then(r => r.json()).then(d => {
+    const a = d.answers.filter(x => x.uid === uid).sort((x, y) => x.submittedAt - y.submittedAt).pop();
+    $('modal').innerHTML = `<h3>💬 评语（${esc(a && a.username || '')}）</h3>
+      <div style="max-height:60vh; overflow:auto; font-size:14px; line-height:1.7;">${(a && a.commentHtml) || '<span class="sub">（无评语）</span>'}</div>
+      <div class="actions"><button onclick="$('mask').classList.remove('open')">关闭</button></div>`;
+    $('mask').classList.add('open');
+    if (window.renderMathInElement) { try { renderMathInElement($('modal'), { delimiters: [{ left: '$$', right: '$$', display: true }, { left: '$', right: '$', display: false }], throwOnError: false }); } catch (e) {} }
+  });
+};
+window.editComment = function (homeworkId, uid, current, pub) {
+  $('modal').innerHTML = `<h3>📝 评语 / 反馈</h3>
+    <p class="sub" style="margin:6px 0 10px;">支持 Markdown：**加粗**、[链接](url)、$公式$…</p>
+    <textarea id="ec-${uid}" style="width:100%; min-height:200px; box-sizing:border-box; 'Monaco','Menlo','Consolas','Courier New',monospace; font-size:13px; resize:vertical;" placeholder="给学生写评语/反馈（写后学生端出现未读红点）">${esc(current)}</textarea>
+    <label style="display:flex; align-items:center; gap:6px; font-weight:400; font-size:13px; margin:10px 0 0; color:var(--muted);">
+      <input type="checkbox" id="ec-pub-${uid}" ${pub ? 'checked' : ''} style="width:auto; flex:none;"> 公开评语（批改列表直接显示，无需点击查看）
+    </label>
+    <div style="margin-top:12px; display:flex; gap:10px; justify-content:flex-end;">
+      <button class="secondary" onclick="$('mask').classList.remove('open')">取消</button>
+      <button class="btn-ok" onclick="saveComment(${homeworkId},${uid})">保存评语</button>
+    </div>`;
+  $('mask').classList.add('open');
+};
+window.saveComment = async function (homeworkId, uid) {
+  const ta = document.getElementById('ec-' + uid) || document.getElementById('comment-' + uid);
+  const pubEl = document.getElementById('ec-pub-' + uid);
+  const r = await fetch('/api/admin/homework/comment', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ homeworkId, uid, comment: ta ? ta.value : '', public: !!(pubEl && pubEl.checked) }) });
+  const d = await r.json();
+  if (!r.ok) { alert(d.error || '操作失败'); return; }
+  $('mask').classList.remove('open');
+  loadHwAnswers();
+};
+function initAnsFold(root) {
+  root.querySelectorAll('.hw-ans').forEach((el) => {
+    const btn = el.parentNode.querySelector('.hw-ans-toggle');
+    if (!btn || el.scrollHeight <= 40) return;
+    el.classList.add('collapsed');
+    btn.style.display = '';
+  });
+}
+window.toggleAns = function (btn) {
+  const el = btn.parentNode.querySelector('.hw-ans');
+  if (!el) return;
+  const expanded = el.classList.toggle('expanded');
+  el.classList.toggle('collapsed', !expanded);
+  btn.textContent = expanded ? '收起' : '点击查看全文';
+};
+
+// ---- 模考管理 ----
+let examProbsCache = []; // {id,title} 全部可评测题目（勾选用）
+async function loadExams() {
+  const d = await (await fetch('/api/exams')).json();
+  if (d.error) { $('examList').innerHTML = '<p class="sub">模考功能暂未开放（config.json 的 examsEnabled=false）。需要使用时改回 true 并重启服务。</p>'; return; }
+  const list = d.exams || [];
+  const box = $('examList');
+  if (!list.length) { box.innerHTML = '<p class="sub">暂无模考。点击「＋ 新建模考」创建；学生提交自动归入进行中的模考（结束后为订正）。</p>'; return; }
+  const STATUS_T = { upcoming: '未开始', running: '进行中', ended: '已结束' };
+  box.innerHTML = list.map((e) => {
+    const badge = e.status === 'running' ? ' style="background:#16a34a; color:#fff;"' : (e.status === 'ended' ? ' style="background:#dc2626; color:#fff;"' : '');
+    return '<div style="border:1px solid var(--line); border-radius:10px; padding:12px 14px; margin:8px 0;">' +
+      '<div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">' +
+        '<b>#' + e.id + ' ' + esc(e.name) + '</b>' +
+        '<span class="badge"' + badge + '>' + (STATUS_T[e.status] || e.status) + '</span>' +
+        (e.published ? '<span class="badge" style="background:var(--accent); color:#fff;">成绩已公布</span>' : '') +
+        (e.hideVerdict ? '<span class="badge">考试期间隐藏结果</span>' : '') +
+        '<span style="flex:1"></span>' +
+        '<button class="secondary" style="padding:3px 12px; font-size:12px;" onclick="openExamForm(' + e.id + ')">编辑</button>' +
+        (e.status !== 'upcoming' && !e.published ? '<button class="secondary" style="padding:3px 12px; font-size:12px;" onclick="publishExam(' + e.id + ')">公布成绩</button>' : '') +
+        '<button class="secondary" style="padding:3px 12px; font-size:12px;" onclick="examResults(' + e.id + ')">成绩表</button>' +
+        '<button class="secondary" style="padding:3px 12px; font-size:12px;" onclick="examImport(' + e.id + ')">导入代码</button>' +
+        '<button class="secondary" style="padding:3px 12px; font-size:12px;" onclick="openOfflineImport(' + e.id + ')" title="线下机房考试：上传「编号/题目名/题目名.cpp」代码包">📦 离线导入</button>' +
+        '<button class="danger" style="padding:3px 12px; font-size:12px;" onclick="delExam(' + e.id + ')">删除</button>' +
+      '</div>' +
+      '<div class="sub" style="margin-top:6px;">' + fmtTime(e.startAt) + ' → ' + fmtTime(e.endAt) + (e.published ? '' : ' · 公布：' + fmtTime(e.publishAt)) + ' · ' + e.problemCount + ' 题</div>' +
+    '</div>';
+  }).join('');
+}
+window.openExamForm = async function (id) {
+  const f = $('examNewForm');
+  f.style.display = 'block';
+  $('exTip').textContent = '';
+  // 题目勾选列表（全部可评测题，含隐藏）——改用 /api/problems，避免全量提交数据拖慢管理页（L-11）
+  const d = await (await fetch('/api/problems')).json();
+  examProbsCache = (d.problems || []).filter((p) => p.judgeable !== false);
+  let checked = {};
+  let ex = null;
+  if (id) {
+    const dl = await (await fetch('/api/exams')).json();
+    ex = (dl.exams || []).find((e) => e.id === id);
+    if (ex) {
+      (ex.problemIds || []).forEach((p) => { checked[p] = true; });
+      const tlv = (t) => { const dt = new Date(t); const pad = (n) => String(n).padStart(2, '0'); return dt.getFullYear() + '-' + pad(dt.getMonth() + 1) + '-' + pad(dt.getDate()) + 'T' + pad(dt.getHours()) + ':' + pad(dt.getMinutes()); };
+      $('exId').value = id; $('exName').value = ex.name || '';
+      $('exStart').value = tlv(ex.startAt); $('exEnd').value = tlv(ex.endAt); $('exPub').value = ex.publishAt ? tlv(ex.publishAt) : '';
+      $('exHide').checked = !!ex.hideVerdict;
+    }
+  } else {
+    $('exId').value = '0'; $('exName').value = ''; $('exStart').value = ''; $('exEnd').value = ''; $('exPub').value = ''; $('exHide').checked = true;
+  }
+  $('exProbs').innerHTML = examProbsCache.map((p) => '<label class="sub" style="display:inline-flex; align-items:center; gap:4px; margin:2px 10px 2px 0; cursor:pointer;"><input type="checkbox" class="exProbChk" value="' + p.id + '"' + (checked[p.id] ? ' checked' : '') + ' style="width:auto;"> #' + p.id + ' ' + esc(p.title) + '</label>').join('');
+};
+window.cancelExamForm = function () { $('examNewForm').style.display = 'none'; };
+window.saveExam = async function () {
+  const tip = $('exTip');
+  tip.textContent = '';
+  const id = parseInt($('exId').value, 10) || 0;
+  const name = $('exName').value.trim();
+  const startAt = $('exStart').value ? new Date($('exStart').value).getTime() : 0;
+  const endAt = $('exEnd').value ? new Date($('exEnd').value).getTime() : 0;
+  const publishAt = $('exPub').value ? new Date($('exPub').value).getTime() : 0;
+  const problemIds = Array.from(document.querySelectorAll('.exProbChk:checked')).map((c) => parseInt(c.value, 10));
+  if (!name) { tip.textContent = '请填写模考名称'; return; }
+  if (!startAt || !endAt) { tip.textContent = '请填写开始/结束时间'; return; }
+  if (endAt <= startAt) { tip.textContent = '结束时间需晚于开始时间'; return; }
+  if (!problemIds.length) { tip.textContent = '请至少勾选一道题'; return; }
+  const body = { name, problemIds, startAt, endAt, hideVerdict: $('exHide').checked };
+  if (publishAt) body.publishAt = publishAt;
+  const url = id ? '/api/admin/exam/edit' : '/api/admin/exam';
+  if (id) body.id = id;
+  const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const d = await r.json();
+  if (!r.ok) { tip.textContent = d.error || '保存失败'; return; }
+  tip.textContent = '✓ 已保存';
+  cancelExamForm();
+  loadExams();
+};
+window.publishExam = async function (id) {
+  if (!confirm('立即公布该模考成绩？学生将立即看到考试成绩与订正入口。')) return;
+  const r = await fetch('/api/admin/exam/publish', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
+  const d = await r.json();
+  if (!r.ok) { alert(d.error || '操作失败'); return; }
+  loadExams();
+};
+window.delExam = async function (id) {
+  if (!confirm('确定删除模考 #' + id + '？历史提交将保留（不再按模考计分/隐藏）。')) return;
+  const r = await fetch('/api/admin/exam/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
+  const d = await r.json();
+  if (!r.ok) { alert(d.error || '删除失败'); return; }
+  loadExams();
+};
+window.examResults = async function (examId) {
+  $('modal').innerHTML = '<h3>成绩表加载中…</h3>';
+  $('mask').classList.add('open');
+  const r = await fetch('/api/admin/exam/results?examId=' + examId);
+  const d = await r.json();
+  if (!r.ok) { $('modal').innerHTML = '<h3>加载失败</h3><p class="sub">' + esc(d.error || '') + '</p>'; return; }
+  const pros = d.problems || [];
+  const cell = (v, subId) => v == null ? '<span class="sub">—</span>' : ('<a class="btn-link" style="padding:1px 8px; font-size:12px;" href="/status.html" onclick="return openSubDetail(' + subId + ')">' + v + '</a>');
+  let html = '<h3>📊 ' + esc(d.exam.name) + ' — 成绩表' + (d.exam.published ? '' : ' <span class="badge" style="background:#dc2626; color:#fff;">未公布</span>') + '</h3>';
+  html += '<p class="sub">' + fmtTime(d.exam.startAt) + ' → ' + fmtTime(d.exam.endAt) + ' · 每题满分 100（子任务部分分求和）。点击分数查看最佳提交。</p>';
+  html += '<div style="overflow:auto; max-height:55vh;"><table><thead><tr><th>排名</th><th>学生</th>' + pros.map((p) => '<th title="#' + p.id + ' ' + esc(p.title) + '">#' + p.id + '</th>').join('') + '<th>总分</th><th></th></tr></thead><tbody>';
+  html += (d.rows || []).map((row, i) => {
+    let extra = '';
+    return '<tr><td>' + (i + 1) + '</td><td><b>' + esc(row.fullname || row.username) + '</b><br><span class="sub">' + esc(row.username) + '</span></td>' +
+      pros.map((p) => {
+        const c = (row.problems || {})[p.id] || {};
+        const t = c.score == null ? '—' : (c.score + (c.corrScore != null && c.corrScore > c.score ? ' /订正' + c.corrScore : ''));
+        return '<td style="text-align:center; cursor:pointer;" title="考试得分 ' + (c.score == null ? '未提交' : c.score) + ' · 订正得分 ' + (c.corrScore == null ? '—' : c.corrScore) + ' · 尝试 ' + (c.attempts || 0) + ' 次" onclick="openSubDetail(' + (c.subId || 0) + ')">' + t + '</td>';
+      }).join('') +
+      '<td style="text-align:center;"><b>' + row.total + '</b></td><td class="sub">' + (row.tried || 0) + '题</td></tr>';
+  }).join('') + '</tbody></table></div>';
+  html += '<p class="sub" style="margin-top:8px;">订正得分仅展示不修改考试总分；未公布的模考成绩表仅管理员可见。</p>';
+  html += '<div class="actions"><button class="secondary" onclick="exportExamCsv(' + examId + ')">导出 CSV</button><button class="secondary" onclick="$(\'mask\').classList.remove(\'open\')">关闭</button></div>';
+  $('modal').innerHTML = html;
+  window.__examRes = d;
+};
+window.openSubDetail = function (subId) {
+  if (!subId) { alert('该生未提交此题'); return false; }
+  window.open('/status.html#s' + subId, '_blank');
+  return false;
+};
+window.exportExamCsv = function (examId) {
+  const d = window.__examRes;
+  if (!d) return;
+  const pros = d.problems || [];
+  const lines = [['排名', '用户名', '姓名'].concat(pros.map((p) => '#' + p.id)).concat(['总分'])];
+  (d.rows || []).forEach((row, i) => {
+    lines.push([i + 1, row.username, row.fullname].concat(pros.map((p) => { const c = (row.problems || {})[p.id] || {}; return c.score == null ? '' : c.score; })).concat([row.total]));
+  });
+  const csv = lines.map((l) => l.map((x) => '"' + String(x).replace(/"/g, '""') + '"').join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' }));
+  a.download = 'exam-' + examId + '-results.csv';
+  a.click();
+  URL.revokeObjectURL(a.href);
+};
+// 导入外部模考代码（同步成绩/代码：本地评测后计入成绩表）
+window.examImport = function (examId) {
+  $('modal').innerHTML = '<h3>📥 导入模考代码（同步成绩）</h3>' +
+    '<p class="sub">格式：JSON 数组对象 { examId, items: [{ username, problemId, std?, code }] }。导入后按平台数据本地评测，逐点/子任务成绩自动计入成绩表，学生登录后可见并可订正。</p>' +
+    '<textarea id="impText" placeholder="{"examId":' + examId + ',"items":[{"username":"zhangsan","problemId":2041,"std":"c++17","code":"..."}]}" style="min-height:220px; width:100%; box-sizing:border-box; font-family:Monaco,Menlo,Consolas,monospace; font-size:12px;"></textarea>' +
+    '<div style="margin:8px 0; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">' +
+      '<input type="file" id="impFile" accept=".json,.txt" style="width:auto;">' +
+      '<button class="secondary" onclick="readImportFile(' + examId + ')">从文件读取</button>' +
+      '<span class="sub">支持上传 .json 文件（内容同上）</span>' +
+    '</div>' +
+    '<div class="err" id="impErr"></div>' +
+    '<div class="actions"><button onclick="doImport(' + examId + ')">导入并评测</button><button class="secondary" onclick="$(\'mask\').classList.remove(\'open\')">取消</button></div>';
+  $('mask').classList.add('open');
+};
+window.readImportFile = function () {
+  const f = $('impFile').files[0];
+  if (!f) { alert('请选择文件'); return; }
+  const rd = new FileReader();
+  rd.onload = () => { $('impText').value = String(rd.result || ''); };
+  rd.readAsText(f);
+};
+window.doImport = async function (examId) {
+  const err = $('impErr');
+  err.textContent = '';
+  let data;
+  try { data = JSON.parse($('impText').value); } catch (e) { err.textContent = 'JSON 解析失败: ' + e.message; return; }
+  if (!data || !Array.isArray(data.items)) { err.textContent = '缺少 items 数组'; return; }
+  data.examId = examId;
+  const r = await fetch('/api/admin/exam/import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+  const d = await r.json();
+  if (!r.ok) { err.textContent = d.error || '导入失败'; return; }
+  let msg = '✓ 已导入 ' + d.created + ' 份提交，正在评测（成绩表稍后刷新可见）';
+  if (d.errors && d.errors.length) msg += '\n跳过：' + d.errors.join('；') + (d.errorsMore ? ' 等' : '');
+  alert(msg);
+  $('mask').classList.remove('open');
+  loadExams();
+};
+// ---- 离线机房代码包导入（编号/题目名/题目名.cpp）----
+const escAttr = (s) => esc(s).replace(/"/g, '&quot;');
+let OFF_DATA = null;
+window.openOfflineImport = function (examId) {
+  OFF_DATA = null;
+  $('modal').innerHTML = `<h3>📦 离线机房代码导入</h3>
+    <p class="sub">适用于线下机房考试：结束后收集学生代码（目录结构 <code>学生编号/题目名/题目名.cpp</code>，打包 .zip/.tar.gz，中文/GBK 文件名自动识别）。上传解析后确认「编号→账号」「题目名→模考题」匹配，一键导入评测：代码与分数同步进模考成绩表，学生登录即可查看代码、分数并订正。</p>
+    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+      <input type="file" id="offFile" accept=".zip,.tar.gz,.tgz" style="width:auto;">
+      <button onclick="parseOfflineZip(${examId})">解析压缩包</button>
+      <span class="sub" id="offTip"></span>
+    </div>
+    <div class="err" id="offErr"></div>
+    <div id="offPreview" style="max-height:52vh; overflow:auto;"></div>
+    <div class="actions" id="offActions" style="display:none;">
+      <label class="sub" style="display:flex; align-items:center; gap:6px; margin-right:auto;">
+        <input type="checkbox" id="offCreate" style="width:auto;"> 为未匹配编号创建账号，默认密码
+        <input type="text" id="offPw" placeholder="至少 7 位" style="width:130px;">
+      </label>
+      <button onclick="applyOfflineImport(${examId})">导入并评测</button>
+      <button class="secondary" onclick="$('mask').classList.remove('open')">关闭</button>
+    </div>`;
+  $('mask').classList.add('open');
+};
+window.parseOfflineZip = async function (examId) {
+  const f = $('offFile').files[0];
+  const err = $('offErr'), tip = $('offTip');
+  err.textContent = ''; tip.textContent = '';
+  if (!f) { err.textContent = '请选择压缩包'; return; }
+  tip.textContent = '解析中…';
+  const fd = new FormData();
+  fd.append('examId', String(examId));
+  fd.append('file', f, f.name);
+  const r = await fetch('/api/admin/exam/import-zip', { method: 'POST', body: fd });
+  const d = await r.json();
+  tip.textContent = '';
+  if (!r.ok) { err.textContent = d.error || '解析失败'; return; }
+  OFF_DATA = d;
+  let html = `<div class="sub" style="margin:10px 0 6px;">共 ${d.students.length} 个编号 / ${d.students.reduce((a, s) => a + s.problems.length, 0)} 份代码 · 未匹配编号 ${d.unmatchedStudents} 个 · 未匹配题目 ${d.unmatchedProblems} 道</div>`;
+  for (const s of d.students) {
+    const uid = s.matched ? s.matched.uid : 0;
+    html += `<div class="off-stu" data-folder="${escAttr(s.folder)}" style="border:1px solid var(--line); border-radius:8px; padding:8px 10px; margin:6px 0;">
+      <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+        <b>📁 ${esc(s.folder)}</b>
+        ${s.matched ? `<span class="badge" style="background:var(--accent); color:#fff;">已匹配 ${esc(s.matched.username)}（${esc(s.matched.fullname)}）</span>` : '<span class="badge" style="background:#ea580c; color:#fff;">未匹配</span>'}
+        <select class="offUid" style="max-width:280px;">
+          ${s.matched ? '' : '<option value="0">— 不导入（或勾选自动创建）—</option>'}
+          ${d.allStudents.map((u) => `<option value="${u.uid}"${u.uid === uid ? ' selected' : ''}>${esc(u.username)}（${esc(u.fullname || '')}${u.studentId ? ' / 学号' + esc(u.studentId) : ''}）</option>`).join('')}
+        </select>
+      </div>
+      ${s.problems.map((p) => `<div class="off-prob" data-file="${escAttr(p.file)}" data-std="${esc(p.std)}" style="display:flex; gap:8px; align-items:center; margin-top:6px; flex-wrap:wrap;">
+        <span class="sub">📄 ${esc(p.folder)}</span>
+        <select class="offPid" style="max-width:320px;">
+          ${d.examProblems.map((pp) => `<option value="${pp.id}"${pp.id === p.matchedPid ? ' selected' : ''}>#${pp.id} ${esc(pp.title)}</option>`).join('')}
+          ${p.matchedPid ? '' : '<option value="0" selected>— 未匹配，请选择题目 —</option>'}
+        </select>
+        <span class="sub">${esc(p.file.split('/').pop())} · ${p.std} · ${p.size} 字节</span>
+        ${p.head ? `<pre class="code" style="flex-basis:100%; max-height:54px; overflow:hidden; margin:2px 0 0; font-size:11px;">${esc(p.head)}</pre>` : ''}
+      </div>`).join('')}
+    </div>`;
+  }
+  if (d.warnings && d.warnings.length) html += `<div class="err" style="margin-top:8px;">⚠ ${d.warnings.slice(0, 10).map(esc).join('<br>')}</div>`;
+  $('offPreview').innerHTML = html;
+  $('offActions').style.display = 'flex';
+};
+window.applyOfflineImport = async function (examId) {
+  if (!OFF_DATA) { alert('请先解析压缩包'); return; }
+  const err = $('offErr');
+  err.textContent = '';
+  const students = [];
+  document.querySelectorAll('#offPreview .off-stu').forEach((row) => {
+    const uid = parseInt(row.querySelector('.offUid').value, 10) || 0;
+    const problems = [];
+    row.querySelectorAll('.off-prob').forEach((pr) => {
+      problems.push({ file: pr.getAttribute('data-file'), pid: parseInt(pr.querySelector('.offPid').value, 10) || 0, std: pr.getAttribute('data-std') });
+    });
+    students.push({ folder: row.getAttribute('data-folder'), uid, problems });
+  });
+  const body = { token: OFF_DATA.token, examId, students, createUsers: $('offCreate').checked, defaultPassword: $('offPw').value.trim() };
+  const r = await fetch('/api/admin/exam/import-zip/apply', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const d = await r.json();
+  if (!r.ok) { err.textContent = d.error || '导入失败'; return; }
+  let msg = '✓ 已导入 ' + d.created + ' 份提交，正在评测（跳过重复 ' + d.skipped + ' 份）';
+  if (d.createdUsers && d.createdUsers.length) msg += '\n新建账号：' + d.createdUsers.join('、');
+  if (d.errors && d.errors.length) msg += '\n跳过：' + d.errors.join('；') + (d.errorsMore ? ' 等' : '');
+  alert(msg);
+  $('mask').classList.remove('open');
+  loadExams();
+};
+// ---- 子任务/部分分配置（OI 评测）----
+window.editScoring = async function (pid) {
+  const d = await (await fetch('/api/problem?id=' + pid)).json();
+  const sc = d.scoring || { mode: 'point', subtasks: [] };
+  const json = sc.mode === 'subtask' ? JSON.stringify({ mode: 'subtask', subtasks: sc.subtasks.map((s) => ({ id: s.id, score: s.score, tests: s.tests, depends: s.depends || [] })) }, null, 2) : '';
+  $('modal').innerHTML = '<h3>⚖️ 评测配置（子任务部分分）— #' + pid + ' ' + esc(d.title) + '</h3>' +
+    '<p class="sub">共 ' + (d.testCount || 0) + ' 个测试点。留空 = 按点均分（默认）。子任务 JSON 示例：</p>' +
+    '<pre class="code" style="font-size:11px;">{\n  "mode": "subtask",\n  "subtasks": [\n    { "id": "1", "score": 30, "tests": ["1", "2", "3"], "depends": [] },\n    { "id": "2", "score": 70, "tests": ["4", "5"], "depends": ["1"] }\n  ]\n}</pre>' +
+    '<textarea id="scText" spellcheck="false" style="width:100%; min-height:200px; box-sizing:border-box; font-family:Monaco,Menlo,Consolas,monospace; font-size:12px;">' + esc(json) + '</textarea>' +
+    '<div style="margin:8px 0; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">' +
+      '<button class="secondary" onclick="genScoring(' + pid + ')">按测试点自动生成（每点 100/N 分）</button>' +
+      '<span class="sub">子任务内所有点全 AC 且依赖子任务通过才得分；分数自动归一化到 100。</span>' +
+    '</div>' +
+    '<div class="err" id="scErr"></div>' +
+    '<div class="actions"><button onclick="saveScoring(' + pid + ')">保存</button><button class="secondary" onclick="$(\'mask\').classList.remove(\'open\')">取消</button></div>';
+  $('mask').classList.add('open');
+};
+window.genScoring = function (pid) {
+  fetch('/api/problem?id=' + pid).then((r) => r.json()).then((d) => {
+    const n = d.testCount || 0;
+    if (!n) { alert('该题没有测试点'); return; }
+    const sub = [];
+    for (let i = 1; i <= n; i++) sub.push({ id: String(i), score: Math.round(100 / n), tests: [String(i)], depends: [] });
+    sub[sub.length - 1].score = 100 - sub.slice(0, -1).reduce((a, s) => a + s.score, 0);
+    $('scText').value = JSON.stringify({ mode: 'subtask', subtasks: sub }, null, 2);
+  });
+};
+window.saveScoring = async function (pid) {
+  const err = $('scErr');
+  err.textContent = '';
+  const text = $('scText').value.trim();
+  let scoring = null;
+  if (text) {
+    try { scoring = JSON.parse(text); } catch (e) { err.textContent = 'JSON 解析失败: ' + e.message; return; }
+  }
+  const r = await fetch('/api/admin/problem/scoring', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ problemId: pid, scoring }) });
+  const d = await r.json();
+  if (!r.ok) { err.textContent = d.error || '保存失败'; return; }
+  $('mask').classList.remove('open');
+  loadProbs();
+};
+
+async function loadFiles() {
+  const d = await (await fetch('/api/files')).json();
+  const rows = $('fileRows');
+  rows.innerHTML = '';
+  if (!d.files.length) { rows.innerHTML = '<tr><td colspan="5" class="sub">暂无附件</td></tr>'; return; }
+  for (const f of d.files) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${esc(f.name)}${f.hidden ? ' <span class="badge">已隐藏</span>' : ''}</td><td class="sub">${esc(f.ext || '—')}</td><td class="sub">${f.size >= 1048576 ? (f.size/1048576).toFixed(1)+' MB' : f.size >= 1024 ? Math.round(f.size/1024)+' KB' : f.size+' B'}</td>
+      <td class="sub">${fmtTime(f.uploadedAt)}</td>
+      <td style="text-align:right; white-space:nowrap;">
+        <button class="${f.hidden ? 'btn-ok' : 'btn-warn'}" style="padding:2px 12px; font-size:12px;" onclick="toggleFileHidden(${f.id},${!f.hidden})">${f.hidden ? '开放' : '隐藏'}</button>
+        <button class="secondary" style="padding:2px 12px; font-size:12px;" onclick="deleteFile(${f.id})">删除</button>
+      </td>`;
+    rows.appendChild(tr);
+  }
+}
+window.toggleFileHidden = async function (id, hidden) {
+  const r = await fetch('/api/admin/file/hidden', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, hidden }) });
+  const d = await r.json();
+  if (!r.ok) { alert(d.error || '操作失败'); return; }
+  loadFiles();
+};
+async function uploadFile() {
+  const tip = $('upTip'), err = $('upErr');
+  tip.textContent = ''; err.textContent = '';
+  const file = $('upFile').files[0];
+  if (!file) { err.textContent = '请选择文件'; return; }
+  const fd = new FormData();
+  fd.append('file', file, file.name);
+  try {
+    const r = await fetch('/api/admin/file', { method: 'POST', body: fd });
+    const d = await r.json();
+    if (!r.ok) { err.textContent = d.error || '上传失败'; return; }
+    tip.textContent = `✓ 已上传 ${d.name}（${d.size} 字节）`;
+    $('upFile').value = '';
+    loadFiles();
+  } catch (e) { err.textContent = '网络错误: ' + e.message; }
+}
+async function deleteFile(id) {
+  if (!confirm('确定删除该附件？此操作不可恢复。')) return;
+  const r = await fetch('/api/admin/file/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
+  const d = await r.json();
+  if (!r.ok) { alert(d.error || '删除失败'); return; }
+  loadFiles();
+}
+
+async function viewCode(id) {
+  const r = await fetch(`/api/code/${id}`);
+  const txt = await r.text();
+  $('modal').innerHTML = `<h3>提交 #${id} 的代码</h3>
+    <div style="position:relative;"><pre class="code" id="codeView">${esc(r.ok ? txt : (() => { try { return JSON.parse(txt).error; } catch (e) { return txt; } })())}</pre>
+    ${r.ok ? '<button class="cp-btn cp-ico" onclick="copyAdminCode(this)" title="复制代码" style="position:absolute; top:8px; right:14px; z-index:5;"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button>' : ''}</div>
+    <div class="actions"><button class="secondary" onclick="$('mask').classList.remove('open')">关闭</button></div>`;
+  $('mask').classList.add('open');
+}
+function copyAdminCode(btn) {
+  const txt = (document.getElementById('codeView') || {}).textContent || '';
+  if (!txt) return;
+  const done = () => { if (btn) { const old = btn.innerHTML; btn.innerHTML = '✓'; setTimeout(() => btn.innerHTML = old, 1200); } };
+  copyText(txt, done);
+}
+$('mask').addEventListener('click', (e) => { if (e.target === $('mask')) $('mask').classList.remove('open'); });
+</script>
+</body>
+</html>

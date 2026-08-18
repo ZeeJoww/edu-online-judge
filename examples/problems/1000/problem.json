@@ -1,0 +1,9 @@
+{
+  "id": 1000,
+  "title": "A + B",
+  "timeLimitSec": 1,
+  "memLimitKb": 262144,
+  "hidden": false,
+  "rankEnabled": true,
+  "tags": ["入门", "输入输出"]
+}

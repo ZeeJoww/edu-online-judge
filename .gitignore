@@ -1,0 +1,54 @@
+work/
+server.log
+*.log
+nohup.out
+
+# 运行期数据（由 backup.sh 定期打包备份，不入 git）
+config.json
+users.json
+sessions.json
+logs.json
+problem_views.json
+notices.json
+files.json
+homework.json
+exams.json
+contest.json
+helps.json
+help_requests.json
+bug_reports.json
+messages.json
+submissions/
+
+# 附件目录（files.json 索引 + backup.sh 备份，不入 git）
+files/
+
+# 编译缓存（按源码哈希，可随时重建）
+.compile-cache/
+
+# 安全：本地口令文件 / 损坏备份 / 临时备份副本不入库
+.admin-pw.txt
+.local-secrets.md
+*.bak*
+*.corrupt-*
+
+# 本地环境与密钥（保留空白示例）
+.env
+.env.local
+.env.*.local
+
+# 编辑器、系统与解释器缓存
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*~
+__pycache__/
+*.py[cod]
+
+# Node / 测试临时产物
+node_modules/
+coverage/
+.tmp/
+tmp/

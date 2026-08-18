@@ -1,0 +1,32 @@
+# TGBOJ systemd 服务单元（公网加固版）
+# 安装：sudo cp tgboj.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now tgboj
+# 判题降权：AmbientCapabilities 授予 setuid/setgid，judge.js 对用户程序 spawn 时 setuid 到 judge-run（config.json judgeUid/judgeGid）
+[Unit]
+Description=TGBOJ judge (LAN OJ)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/tgboj
+ExecStart=/usr/bin/env node server.js
+Restart=always
+RestartSec=3
+User=tgboj
+Group=tgboj
+AmbientCapabilities=CAP_SETUID CAP_SETGID CAP_CHOWN
+CapabilityBoundingSet=CAP_SETUID CAP_SETGID CAP_CHOWN
+NoNewPrivileges=true
+MemoryMax=3G
+TasksMax=512
+ProtectSystem=strict
+ReadWritePaths=/opt/tgboj /tmp
+PrivateTmp=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+# 日志：stdout/stderr 进 journald（journalctl -u tgboj -f）；server.log 仅非 systemd 模式使用。
+# 注意：模板默认部署目录为 /opt/tgboj、运行用户为 tgboj；安装前可按实际环境修改。
+# 首次启动（无 users.json）时需要初始口令，二选一：
+#   Environment=TGBOJ_ADMIN_PASSWORD=强随机口令
+#   EnvironmentFile=/etc/tgboj.env   （chmod 600，内容 TGBOJ_ADMIN_PASSWORD=强随机口令）
+
+[Install]
+WantedBy=multi-user.target

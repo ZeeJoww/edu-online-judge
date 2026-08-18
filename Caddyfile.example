@@ -1,0 +1,6 @@
+# 公网 TLS 反代示例（Caddy 自动申请证书）：
+#   1) 安装 caddy；2) 本文件改为 Caddyfile 放到 /etc/caddy/Caddyfile；3) systemctl reload caddy
+#   4) judge/config.json 设 "cookieSecure": true 并重启 judge；5) 路由器只放行 443（80 用于证书）
+oj.example.com {
+    reverse_proxy 127.0.0.1:8090
+}
