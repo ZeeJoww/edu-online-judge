@@ -281,6 +281,26 @@
   window.gateLogout = function () { alert('静态 Demo 默认保持学生视角，无需登录或退出。'); };
   window.gateBugReport = function () { alert('静态 Demo 不会保存问题反馈。'); };
 
+  function markReadOnlyControls(root) {
+    if (!root || !root.querySelectorAll) return;
+    const selectors = [
+      '#submitBtn', '#saveBio', '#exportBtn', '#qSend', '#uploadBtn',
+      'button[onclick*="openWarnEdit"]', 'button[onclick*="toggleWarn"]',
+      'button[onclick*="requestHelp"]', 'button[onclick*="gateChangePw"]'
+    ];
+    root.querySelectorAll(selectors.join(',')).forEach((el) => {
+      el.disabled = true;
+      el.title = '静态 Demo 不执行判题或保存数据';
+      if (!el.dataset.demoLocked) {
+        el.dataset.demoLocked = '1';
+        el.textContent = '🔒 ' + el.textContent.replace(/^🔒\s*/, '');
+      }
+    });
+    root.querySelectorAll('.theme-btn, a[onclick*="gateChangePw"], a[onclick*="gateLogout"]').forEach((el) => {
+      el.style.display = 'none';
+    });
+  }
+
   function addDemoBanner() {
     window.gateChangePw = function () { alert('静态 Demo 不支持修改密码。'); };
     window.gateLogout = function () { alert('静态 Demo 默认保持学生视角，无需登录或退出。'); };
@@ -291,6 +311,16 @@
     bar.style.cssText = 'position:relative;z-index:9997;padding:7px 14px;background:#0f172a;color:#e2e8f0;font-size:12px;display:flex;gap:12px;align-items:center;justify-content:center;flex-wrap:wrap;border-bottom:1px solid #334155;';
     bar.innerHTML = '<b style="color:#67e8a5;">学生视角 · 静态 Demo</b><span>无需登录，不执行代码，不保存数据</span><a href="exam.html" style="color:#93c5fd;">模考</a><a href="clar.html" style="color:#93c5fd;">比赛澄清</a><a href="../showcase.html" style="color:#93c5fd;">项目展示页</a>';
     document.body.insertBefore(bar, document.body.firstChild);
+    markReadOnlyControls(document);
+    if (typeof MutationObserver !== 'undefined') {
+      new MutationObserver((records) => {
+        for (const record of records) {
+          for (const node of record.addedNodes) {
+            if (node.nodeType === 1) markReadOnlyControls(node.parentNode || node);
+          }
+        }
+      }).observe(document.body, { childList: true, subtree: true });
+    }
   }
 
   document.addEventListener('DOMContentLoaded', addDemoBanner);
