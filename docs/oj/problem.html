@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>题目 - TGBOJ</title>
+<title>题目 - EDUOJ</title>
 <link rel="stylesheet" href="style.css">
 <link rel="stylesheet" href="vendor/katex/dist/katex.min.css">
 <script src="vendor/katex/dist/katex.min.js"></script>
@@ -115,7 +115,7 @@ fetch('api/problem?id=' + encodeURIComponent(pid)).then(r => r.json()).then(d =>
   // 记录打开（登录用户）：用于「提示更新」通知
   fetch('api/problem/view', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ problemId: d.id }) }).catch(() => { });
   currentTestCount = d.testCount || 0;
-  document.title = d.title + ' - TGBOJ';
+  document.title = d.title + ' - EDUOJ';
   const area = $('problemArea');
   // 模考横幅：考试进行中/已结束（订正）时提示提交归属与成绩公布
   let examBanner = '';

@@ -311,6 +311,12 @@
     bar.style.cssText = 'position:relative;z-index:9997;padding:7px 14px;background:#0f172a;color:#e2e8f0;font-size:12px;display:flex;gap:12px;align-items:center;justify-content:center;flex-wrap:wrap;border-bottom:1px solid #334155;';
     bar.innerHTML = '<b style="color:#67e8a5;">学生视角 · 静态 Demo</b><span>无需登录，不执行代码，不保存数据</span><a href="exam.html" style="color:#93c5fd;">模考</a><a href="clar.html" style="color:#93c5fd;">比赛澄清</a><a href="../showcase.html" style="color:#93c5fd;">项目展示页</a>';
     document.body.insertBefore(bar, document.body.firstChild);
+    // 某些页面在 DOMContentLoaded 中稍后注入导航；下一任务统一把提示条移回最顶部。
+    setTimeout(() => {
+      if (bar.isConnected && document.body.firstChild !== bar) {
+        document.body.insertBefore(bar, document.body.firstChild);
+      }
+    }, 0);
     markReadOnlyControls(document);
     if (typeof MutationObserver !== 'undefined') {
       new MutationObserver((records) => {

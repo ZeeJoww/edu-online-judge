@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>模考 - TGBOJ</title>
+<title>模考 - EDUOJ</title>
 <link rel="stylesheet" href="style.css">
 <script>window.GATE_REQUIRED = true;</script>
 <script src="gate.js"></script>
@@ -60,7 +60,7 @@ async function renderDetail(id) {
   const area = $('area');
   if (d.error) { area.innerHTML = '<h2>模考不存在</h2><p class="sub">' + esc(d.error) + '</p>'; return; }
   const e = d.exam;
-  document.title = e.name + ' - 模考 - TGBOJ';
+  document.title = e.name + ' - 模考 - EDUOJ';
   const st = d.status;
   const my = d.my || {};
   let head = '<div class="toolbar"><h2 style="margin:0">📅 ' + esc(e.name) + '</h2>' +

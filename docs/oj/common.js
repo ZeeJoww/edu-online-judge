@@ -1,8 +1,8 @@
 // common.js — 公共工具 + 分页组件（题目列表 / 评测状态共用）
 // 依赖：页面内联脚本定义 renderPage()，以及元素 #pager #pageBtns #pageInfo #pageSizeSel #jumpMode #jumpVal
 (function () {
-  window.TGBOJ = window.TGBOJ || {};
-  var T = window.TGBOJ;
+  window.EDUOJ = window.EDUOJ || {};
+  var T = window.EDUOJ;
   T.rowPrefix = T.rowPrefix || 'p'; // 跳转定位的行 id 前缀（题目='p'，提交='s'）
 
   window.esc = function (s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); };

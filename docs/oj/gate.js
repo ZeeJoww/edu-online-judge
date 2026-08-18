@@ -16,7 +16,7 @@
     mask.innerHTML =
       '<div class="gate-card">' +
       '<span class="gate-close" onclick="gateClose()" title="关闭">×</span>' +
-      '<h2>登录 TGBOJ</h2>' +
+      '<h2>登录 EDUOJ</h2>' +
       '<div id="gate-login">' +
       '<label>用户名</label><input id="g-user" placeholder="用户名" autocomplete="username">' +
       '<label>密码</label><input id="g-pass" type="password" placeholder="密码" autocomplete="current-password">' +
@@ -88,7 +88,7 @@
     m.querySelector('#gate-login').style.display = '';
     m.querySelector('#gate-reg').style.display = 'none';
     m.querySelector('#g-err').textContent = '';
-    m.querySelector('h2').textContent = '登录 TGBOJ';
+    m.querySelector('h2').textContent = '登录 EDUOJ';
   };
   window.gateShowReg = function () {
     var m = document.getElementById('gate-mask');
@@ -96,7 +96,7 @@
     m.querySelector('#gate-login').style.display = 'none';
     m.querySelector('#gate-reg').style.display = '';
     m.querySelector('#g-reg-err').textContent = '';
-    m.querySelector('h2').textContent = '注册 TGBOJ';
+    m.querySelector('h2').textContent = '注册 EDUOJ';
   };
   // 未登录时弹出登录；登录成功回调 cb（用于交题等）
   window.gateEnsureLogin = function (cb) {
@@ -583,7 +583,7 @@
   function ensureHeader() {
     if (document.querySelector('header')) return;
     var header = document.createElement('header');
-    header.innerHTML = '<span class="logo">⚡ TGBOJ</span>' +
+    header.innerHTML = '<span class="logo">⚡ EDUOJ</span>' +
       '<nav>' +
       '<a href="index.html">首页</a>' +
       '<a href="problems.html">题目列表</a>' +

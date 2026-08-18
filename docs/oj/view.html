@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>附件查看 - TGBOJ</title>
+<title>附件查看 - EDUOJ</title>
 <link rel="stylesheet" href="style.css">
 <link rel="stylesheet" href="vendor/katex/dist/katex.min.css">
 <script src="vendor/katex/dist/katex.min.js"></script>
@@ -13,7 +13,7 @@
 </head>
 <body>
 <header>
-  <span class="logo">⚡ TGBOJ</span>
+  <span class="logo">⚡ EDUOJ</span>
   <nav>
     <a href="index.html">首页</a> <a href="problems.html">题目列表</a>
     <a href="homework.html">作业</a>
@@ -37,7 +37,7 @@ const id = new URLSearchParams(location.search).get('id') || '';
 function loadView() {
   fetch('api/file/view?id=' + encodeURIComponent(id)).then(r => r.json()).then(d => {
     if (d.error) { $('viewArea').innerHTML = '<h1>无法查看</h1><p class="sub">' + esc(d.error) + '</p>'; return; }
-    document.title = d.name + ' - TGBOJ';
+    document.title = d.name + ' - EDUOJ';
     $('fname').textContent = d.name;
     $('fdl').href = 'files/' + id + 'download';
     if (d.ext === '.pdf') {

@@ -34,12 +34,12 @@ fs.mkdirSync(target, { recursive: true });
 
 for (const name of assets) {
   const content = fs.readFileSync(path.join(source, name), 'utf8');
-  fs.writeFileSync(path.join(target, name), rewriteRootPaths(content));
+  fs.writeFileSync(path.join(target, name), rewriteRootPaths(content).replace(/TGBOJ/g, 'EDUOJ'));
 }
 
 for (const name of pages) {
   let content = fs.readFileSync(path.join(source, name), 'utf8');
-  content = rewriteRootPaths(content);
+  content = rewriteRootPaths(content).replace(/TGBOJ/g, 'EDUOJ');
   content = content.replace(/\s*<a href="admin\.html">管理<\/a>/g, '');
   const mockTag = '<script src="demo-mock.js"></script>';
   content = content.replace('</head>', mockTag + '\n</head>');

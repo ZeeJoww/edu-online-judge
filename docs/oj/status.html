@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>评测状态 - TGBOJ</title>
+<title>评测状态 - EDUOJ</title>
 <link rel="stylesheet" href="style.css">
 <script>window.GATE_REQUIRED = false;</script>
 <script src="gate.js"></script>
@@ -60,7 +60,7 @@ const meReady = fetch('api/auth/me').then(r => r.json()).then(d => { ME = d.user
 let FILTER_USER = new URLSearchParams(location.search).get('user') || '';
 let FILTER_PROB = new URLSearchParams(location.search).get('problem') || '';
 initPager();
-TGBOJ.rowPrefix = 's';
+EDUOJ.rowPrefix = 's';
 let lastList = [];
 function statusParams(extra) {
   const sp = new URLSearchParams(extra || {});
