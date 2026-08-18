@@ -21,39 +21,34 @@
   <main id="top">
     <section class="hero">
       <div>
-        <p class="eyebrow">LIGHTWEIGHT ONLINE JUDGE</p>
-        <h1>为教学与竞赛而生的<br><em>轻量评测系统</em></h1>
-        <p class="intro">题库、作业、比赛、模考与评测集中于一个无需数据库的 Node.js 应用。</p>
+        <h1>EDUOJ</h1>
+        <p class="intro">面向课堂教学的轻量在线评测系统。</p>
         <div class="actions">
           <a class="button primary" href="oj/problems.html">进入学生端 Demo</a>
           <a class="button secondary" href="https://github.com/ZeeJoww/edu-online-judge" target="_blank" rel="noreferrer">查看 GitHub</a>
         </div>
       </div>
-      <aside class="terminal" aria-label="系统运行示意">
-        <div class="terminal-head"><i></i><i></i><i></i><span>judge@tgboj</span></div>
-        <pre><code><b>$</b> node server.js
-<span>✓</span> problems loaded
-<span>✓</span> judge workers ready
-<span>✓</span> listening on :8090
-
-submission <strong>#1024</strong>
-compile  <span>OK</span>
-test 1   <span>AC</span>  7ms / 1.8MB
-test 2   <span>AC</span>  6ms / 1.8MB
-score    <mark>100</mark></code></pre>
+      <aside class="hero-card" aria-label="教学流程">
+        <p class="card-label">TEACHING WORKFLOW</p>
+        <ol>
+          <li><b>布置</b><span>组织必做与选做题目</span></li>
+          <li><b>练习</b><span>提交代码并查看评测结果</span></li>
+          <li><b>辅导</b><span>求助、改码与重新评测</span></li>
+          <li><b>复盘</b><span>作业、错题本与排行榜</span></li>
+        </ol>
       </aside>
     </section>
 
     <section id="features" class="section">
       <div class="section-title">
-        <p>CORE FEATURES</p>
-        <h2>一套系统，覆盖完整教学流程</h2>
+        <p>TEACHING FIRST</p>
+        <h2>主打教学</h2>
       </div>
       <div class="feature-grid">
-        <article><span>01</span><h3>多语言评测</h3><p>C、C++14/17/20 与 Python 3，支持普通测试点和子任务评分。</p></article>
-        <article><span>02</span><h3>教学闭环</h3><p>题库、作业、错题本、通知、私信和课堂大屏协同工作。</p></article>
-        <article><span>03</span><h3>竞赛模式</h3><p>OI、IOI、ACM 赛制，支持封榜、澄清、模考和成绩导出。</p></article>
-        <article><span>04</span><h3>轻量部署</h3><p>单 Node.js 进程、原生前端和 JSON 存储，无 npm 运行依赖。</p></article>
+        <article><span>01</span><h3>改代码重测</h3><p>教师可在提交详情中修正学生代码并立即重新评测，便于课堂讲解和定位错误。</p></article>
+        <article><span>02</span><h3>向教师求助</h3><p>学生可针对具体提交发起求助，教师结合代码、得分与测试点结果进行辅导。</p></article>
+        <article><span>03</span><h3>必做 / 选做</h3><p>编程作业支持必做与选做分类，完成情况可在作业页和排行榜中清晰查看。</p></article>
+        <article><span>04</span><h3>AI 审查功能</h3><p>对提交进行风险分析，可自动检测与拦截高风险代码，并向教师说明原因。</p></article>
       </div>
     </section>
 
