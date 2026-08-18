@@ -18,7 +18,7 @@ jobs:
           node-version: 20
       - name: Check JavaScript syntax
         shell: bash
-        run: git ls-files -z '*.js' ':!public/vendor/**' | xargs -0 -n1 node --check
+        run: git ls-files -z '*.js' ':!public/vendor/**' ':!docs/oj/vendor/**' | xargs -0 -n1 node --check
       - name: Verify generated Pages demo
         shell: bash
         run: |
