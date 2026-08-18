@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>说明 - TGBOJ</title>
+<link rel="stylesheet" href="style.css">
+<script src="demo-mock.js"></script>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <h2>📖 说明</h2>
+    <h3 style="font-size:16px; margin:14px 0 6px; border-left:4px solid var(--accent); padding-left:10px;">网站用途</h3>
+    <p style="margin:6px 0; line-height:1.8;">TGBOJ 是信息学竞赛在线评测系统（Online Judge），用于日常训练与课堂教学：</p>
+    <ul style="margin:6px 0; padding-left:22px; line-height:1.9;">
+      <li><b>题目练习</b>：浏览题目列表，在线提交代码，实时评测并查看逐测试点结果与小结</li>
+      <li><b>作业</b>：按期次完成教师布置的文本作业与编程作业（★ 为必做）</li>
+      <li><b>排行榜 / 比赛</b>：查看期次排行与比赛实时榜单（支持 OI / IOI / ACM 赛制与封榜）</li>
+      <li><b>错题本</b>：自动归集未满分题目，便于订正</li>
+      <li><b>附件</b>：教师分发的课件、数据包等资料下载</li>
+    </ul>
+    <h3 style="font-size:16px; margin:18px 0 6px; border-left:4px solid var(--accent); padding-left:10px;">评测参数</h3>
+    <div id="params">加载中…</div>
+    <h3 style="font-size:16px; margin:18px 0 6px; border-left:4px solid var(--accent); padding-left:10px;">判定结果说明</h3>
+    <div id="verdicts"></div>
+    <h3 style="font-size:16px; margin:18px 0 6px; border-left:4px solid var(--accent); padding-left:10px;">提交须知</h3>
+    <ul style="margin:6px 0; padding-left:22px; line-height:1.9;">
+      <li>代码长度不超过 100000 字符；提交后进入队列依次评测，请耐心等待</li>
+      <li>题目标注「文件读写」时，可用 <code>freopen</code> 读写指定文件，与标准输入输出写法等价</li>
+      <li>C/C++ 已预定义 <code>ONLINE_JUDGE</code> 宏，可用 <code>#ifdef ONLINE_JUDGE</code> 区分本地调试与评测环境</li>
+      <li>评测环境为 Linux 沙箱：禁止网络访问与危险系统调用，违规代码将被安全系统拦截</li>
+      <li>样例可点击右侧复制按钮一键复制；样例失败不影响正式测试点的评测与得分</li>
+    </ul>
+  </div>
+</div>
+<script src="gate.js"></script>
+<script>
+const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const VERDICTS = [
+  ['AC', '通过', '答案正确'],
+  ['WA', '答案错误', '小结会给出首个不同位置（行号 + 期望/实际片段）'],
+  ['TLE', '超出时间限制', '小结给出 CPU 时间与限制'],
+  ['MLE', '超出内存限制', '小结给出内存峰值与限制'],
+  ['OLE', '输出超限', '输出超过上限被强制终止'],
+  ['RE', '运行错误', '小结给出退出码/信号（如 139 段错误）'],
+  ['CE', '编译错误', '小结给出第一条报错，详情含完整编译日志'],
+  ['SE', '系统错误', '评测机异常，请联系教师'],
+  ['等待中', '排队/检测中', '提交正在排队等待评测'],
+  ['已拦截', '安全拦截', '代码被安全系统拦截，如有疑问请联系教师'],
+];
+document.getElementById('verdicts').innerHTML = '<table class="md-table"><thead><tr><th>判定</th><th>含义</th><th>说明</th></tr></thead><tbody>' +
+  VERDICTS.map((v) => '<tr><td style="text-align:center;"><b>' + esc(v[0]) + '</b></td><td>' + esc(v[1]) + '</td><td class="sub">' + esc(v[2]) + '</td></tr>').join('') + '</tbody></table>';
+(async function () {
+  const box = document.getElementById('params');
+  try {
+    const d = await (await fetch('api/judge-info')).json();
+    const rows = [
+      ['语言与编译', d.languages.join('；')],
+      ['编译参数', d.compileFlags + '（预定义 ONLINE_JUDGE 宏）'],
+      ['编译超时', d.compileTimeoutSec + ' 秒'],
+      ['默认时限', d.timeLimitSec + ' 秒 / 测试点（每题以题目页为准）'],
+      ['默认内存', d.memLimitMb + ' MB / 测试点（每题以题目页为准）'],
+      ['栈空间', '不限（深度递归受内存限制约束）'],
+      ['输出上限', d.outputLimitMb + ' MB / 测试点（超过判 OLE 并立即终止）'],
+      ['评分方式', '满分 100 分：按测试点均分；部分题目按子任务给部分分（题面有说明）'],
+      ['并发评测', '全局最多 ' + d.maxParallel + ' 个，每人最多 ' + d.maxPerUser + ' 个（多人同时评测自动公平调度）'],
+    ];
+    box.innerHTML = '<table class="md-table"><tbody>' + rows.map((r) => '<tr><td style="white-space:nowrap;"><b>' + esc(r[0]) + '</b></td><td>' + esc(r[1]) + '</td></tr>').join('') + '</tbody></table>';
+  } catch (e) {
+    box.textContent = '加载失败，请刷新重试。';
+  }
+})();
+</script>
+</body>
+</html>

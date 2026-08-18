@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>模考 - TGBOJ</title>
+<link rel="stylesheet" href="style.css">
+<script>window.GATE_REQUIRED = true;</script>
+<script src="gate.js"></script>
+<script src="demo-mock.js"></script>
+</head>
+<body>
+<div class="wrap">
+  <div class="card" id="area"><h2>加载中…</h2></div>
+</div>
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const fmt = (t) => t ? new Date(t).toLocaleString('zh-CN', { hour12:false }) : '—';
+let ME = null;
+const BADGE = {
+  upcoming: '<span class="badge" style="background:var(--muted); color:#fff;">未开始</span>',
+  running: '<span class="badge" style="background:#16a34a; color:#fff;">进行中</span>',
+  ended: '<span class="badge" style="background:#dc2626; color:#fff;">已结束</span>',
+};
+
+async function init() {
+  ME = (await (await fetch('api/auth/me')).json()).user;
+  const id = parseInt(new URLSearchParams(location.search).get('id'), 10);
+  if (!id) return renderList();
+  return renderDetail(id);
+}
+
+async function renderList() {
+  const d = await (await fetch('api/exams')).json();
+  const area = $('area');
+  if (d.error) {
+    area.innerHTML = '<h2>📅 模考</h2><p class="sub">' + esc(d.error) + '。模考（考试）功能由管理员在 config.json 中开启（examsEnabled）。</p>';
+    return;
+  }
+  if (!d.exams || !d.exams.length) {
+    area.innerHTML = '<h2>📅 模考</h2><p class="sub">暂无模考安排。模考由老师在管理后台创建：考试期间提交计入模考成绩，结束后公布成绩并开放订正。</p>';
+    return;
+  }
+  area.innerHTML = '<div class="toolbar"><h2 style="margin:0">📅 模考</h2><span class="sub">共 ' + d.exams.length + ' 场</span></div>' +
+    d.exams.map((e) => '<div style="border:1px solid var(--line); border-radius:10px; padding:14px 16px; margin:10px 0; display:flex; gap:12px; align-items:center; flex-wrap:wrap;">' +
+      '<div style="flex:1; min-width:260px;">' +
+        '<a href="exam.html?id=' + e.id + '" style="font-size:16px; font-weight:700; color:var(--text);">' + esc(e.name) + '</a> ' + (BADGE[e.status] || '') +
+        (e.published ? ' <span class="badge" style="background:var(--accent); color:#fff;">成绩已公布</span>' : '') +
+        '<div class="sub" style="margin-top:6px;">' + fmt(e.startAt) + ' → ' + fmt(e.endAt) + ' · ' + e.problemCount + ' 题</div>' +
+        (e.status === 'ended' && !e.published ? '<div class="sub" style="color:var(--muted);">成绩公布：' + fmt(e.publishAt) + '</div>' : '') +
+      '</div>' +
+      '<a class="btn-link" href="exam.html?id=' + e.id + '">' + (e.status === 'upcoming' ? '查看题目' : (e.status === 'running' ? '进入考试' : '查看成绩 / 订正')) + '</a>' +
+    '</div>').join('');
+}
+
+async function renderDetail(id) {
+  const d = await (await fetch('api/exam?id=' + id)).json();
+  if (d.error) { $('area').innerHTML = '<h2>📅 模考</h2><p class="sub">' + esc(d.error) + '。模考（考试）功能由管理员在 config.json 中开启（examsEnabled）。</p>'; return; }
+  const area = $('area');
+  if (d.error) { area.innerHTML = '<h2>模考不存在</h2><p class="sub">' + esc(d.error) + '</p>'; return; }
+  const e = d.exam;
+  document.title = e.name + ' - 模考 - TGBOJ';
+  const st = d.status;
+  const my = d.my || {};
+  let head = '<div class="toolbar"><h2 style="margin:0">📅 ' + esc(e.name) + '</h2>' +
+    '<span style="margin-left:auto; display:flex; gap:8px; align-items:center;">' + (BADGE[st] || '') +
+    (d.published ? '<span class="badge" style="background:var(--accent); color:#fff;">成绩已公布</span>' : '') + '</span></div>' +
+    '<p class="sub" style="margin:6px 0 2px;">考试时间：' + fmt(e.startAt) + ' → ' + fmt(e.endAt) + '</p>' +
+    (st === 'upcoming' ? '<p class="sub" style="color:var(--muted); margin:2px 0;">考试尚未开始，开始后在此页提交并自动计入模考成绩。</p>' : '') +
+    (st === 'running' ? '<p class="sub" style="color:#16a34a; margin:2px 0;">考试进行中：在题目页提交即自动计入模考成绩' + (e.hideVerdict ? '，考试期间不公布评测结果' : '') + '。</p>' : '') +
+    (st === 'ended' && !d.published ? '<p class="sub" style="color:#ea580c; margin:2px 0;">考试已结束，成绩将于 ' + fmt(e.publishAt) + ' 公布；现在可以订正（不影响模考成绩）。</p>' : '') +
+    (st === 'ended' && d.published ? '<p class="sub" style="color:#16a34a; margin:2px 0;">成绩已公布。订正提交不影响模考成绩，订正得分仅在本页展示。</p>' : '') +
+    '<p class="sub" style="margin:2px 0 10px;"><a class="btn-link" style="padding:2px 10px; font-size:12px;" href="exam.html">← 返回模考列表</a></p>';
+  let totalScore = 0, scored = 0;
+  const rows = (d.problems || []).map((p) => {
+    const m = my[p.id] || {};
+    const examScore = d.published && st !== 'upcoming' ? (m.examScore != null ? m.examScore : '—') : '未公布';
+    const corrScore = (st === 'ended' && d.published) ? (m.corrScore != null ? m.corrScore : '—') : '—';
+    if (typeof examScore === 'number') { totalScore += examScore; scored++; }
+    const subMeta = (p.scoring && p.scoring.mode === 'subtask' && p.scoring.subtasks.length)
+      ? '<div class="sub" style="font-size:11px;">子任务：' + p.scoring.subtasks.map((s) => s.score + '分(' + s.tests.length + '点)').join(' · ') + '</div>' : '';
+    return '<tr>' +
+      '<td><b>#' + p.id + '</b> <a href="problem.html?id=' + p.id + '">' + esc(p.title) + '</a>' + subMeta + '</td>' +
+      '<td style="text-align:center;">' + (typeof examScore === 'number' ? examScore + ' / 100' : examScore) + '</td>' +
+      '<td style="text-align:center;">' + (typeof corrScore === 'number' ? corrScore + ' / 100' : corrScore) + '</td>' +
+      '<td style="text-align:right; white-space:nowrap;">' +
+        (ME ? '<a class="btn-link" style="padding:2px 10px; font-size:12px;" href="status.html?user=' + encodeURIComponent(ME.username) + '&problem=' + p.id + '">我的提交</a> ' : '') +
+        (st === 'upcoming' ? '<span class="sub">未开始</span>' : '<a class="btn-link" style="padding:2px 10px; font-size:12px;" href="problem.html?id=' + p.id + '">' + (st === 'running' ? '去提交' : '去订正') + '</a>') +
+      '</td></tr>';
+  }).join('');
+  const table = '<table style="margin-top:10px;"><thead><tr><th>题目</th><th>考试得分</th><th>订正得分</th><th style="text-align:right;">操作</th></tr></thead><tbody>' +
+    rows + '</tbody></table>';
+  const scoreLine = (st === 'ended' && d.published)
+    ? '<div style="margin:8px 0 4px;"><b>总分：' + totalScore + ' / ' + (100 * (d.problems || []).length) + '</b> <span class="sub">（' + scored + ' 题有考试得分，未提交/未评测按 0 计）</span></div>'
+    : '';
+  area.innerHTML = head + scoreLine + table;
+}
+
+init();
+// 登录成功（gate.js 弹窗登录 / 会话恢复）后重新渲染模考页面，避免停留在「请先登录」提示
+window.addEventListener('tgboj:auth', init);
+</script>
+</body>
+</html>

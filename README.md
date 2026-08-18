@@ -113,7 +113,15 @@ TGBOJ_ADMIN_PASSWORD='测试密码' node tests/e2e_test.js http://localhost:8090
 
 ## GitHub Pages Demo
 
-`docs/` 是独立静态演示，使用原创 A+B 示例题和模拟评测，不读取本地题库，也不会执行用户代码。推送后在仓库 **Settings → Pages** 中选择 GitHub Actions 即可发布。
+`docs/` 默认进入复用真实 TGBOJ 网页的学生端 Demo，无需登录。题目、作业、评测状态、排行榜、比赛、模考、澄清、错题本、附件和个人中心均使用原创浏览器 Mock 数据；代码不会执行，提交、保存、下载等写操作不会持久化。原项目展示页保留在 [`docs/showcase.html`](https://zeejoww.github.io/edu-online-judge/showcase.html)。
+
+生成学生端静态文件：
+
+```bash
+node scripts/build-pages-demo.js
+```
+
+推送后由 GitHub Actions 自动构建并部署 Pages。
 
 ## 文档
 

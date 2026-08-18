@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>附件查看 - TGBOJ</title>
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="vendor/katex/dist/katex.min.css">
+<script src="vendor/katex/dist/katex.min.js"></script>
+<script src="vendor/katex/dist/contrib/auto-render.min.js"></script>
+<script src="gate.js"></script>
+<script src="demo-mock.js"></script>
+</head>
+<body>
+<header>
+  <span class="logo">⚡ TGBOJ</span>
+  <nav>
+    <a href="index.html">首页</a> <a href="problems.html">题目列表</a>
+    <a href="homework.html">作业</a>
+    <a href="status.html">评测状态</a>
+    <a href="contest.html">比赛</a>
+    <a href="files.html">附件</a>
+  </nav>
+</header>
+<div class="wrap">
+  <div class="card" style="padding:12px 20px; display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+    <a class="btn-link" href="files.html">← 返回附件</a>
+    <b id="fname" style="font-size:15px;"></b>
+    <a id="fdl" class="btn-link" href="#" style="background:#6b7280; margin-left:auto;">下载</a>
+  </div>
+  <div class="card" id="viewArea"><h1>加载中…</h1></div>
+</div>
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const id = new URLSearchParams(location.search).get('id') || '';
+function loadView() {
+  fetch('api/file/view?id=' + encodeURIComponent(id)).then(r => r.json()).then(d => {
+    if (d.error) { $('viewArea').innerHTML = '<h1>无法查看</h1><p class="sub">' + esc(d.error) + '</p>'; return; }
+    document.title = d.name + ' - TGBOJ';
+    $('fname').textContent = d.name;
+    $('fdl').href = 'files/' + id + 'download';
+    if (d.ext === '.pdf') {
+      $('viewArea').innerHTML = `<iframe src="${d.rawUrl}" style="width:100%; height:80vh; border:none; border-radius:8px;"></iframe>`;
+    } else if (d.rawUrl) {
+      // 图片：直接内嵌显示
+      $('viewArea').innerHTML = `<div style="text-align:center; padding:10px;"><img src="${d.rawUrl}" alt="${esc(d.name)}" style="max-width:100%; border-radius:8px; box-shadow:0 2px 12px rgba(0,0,0,.15);"></div>`;
+    } else {
+      const area = $('viewArea');
+      area.innerHTML = d.html;
+      // 代码块样式增强
+      area.querySelectorAll('pre').forEach((p) => p.classList.add('code'));
+      // 数学公式（KaTeX）：$...$ 行内、$$...$$ 块级
+      if (window.renderMathInElement) {
+        try {
+          renderMathInElement(area, { delimiters: [{ left: '$$', right: '$$', display: true }, { left: '$', right: '$', display: false }], throwOnError: false });
+        } catch (e) { /* 忽略公式渲染错误 */ }
+      }
+    }
+  }).catch((e) => { $('viewArea').innerHTML = '<h1>加载失败</h1><p class="sub">' + esc(String((e && e.message) || e)) + '</p>'; });
+}
+loadView();
+// 登录成功（gate.js 弹窗登录 / 会话恢复）后重新加载附件内容
+window.addEventListener('tgboj:auth', loadView);
+</script>
+</body>
+</html>

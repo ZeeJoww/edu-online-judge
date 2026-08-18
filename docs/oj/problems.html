@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>题目列表 - TGBOJ</title>
+<link rel="stylesheet" href="style.css">
+<script>window.GATE_REQUIRED = false;</script>
+<script src="gate.js"></script>
+<script src="common.js"></script>
+<script src="demo-mock.js"></script>
+</head>
+<body>
+<div class="wrap">
+    <div class="card">
+    <div class="toolbar"><h2 style="margin:0">题目列表</h2><span class="sub" id="info"></span></div>
+    <table>
+      <thead><tr><th>编号</th><th>题目</th><th>过题/尝试</th><th>时间限制</th><th>内存限制</th><th></th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <div class="pager" id="pager" style="display:none; margin-top:10px; align-items:center; gap:10px; justify-content:center;">
+      <button class="secondary" onclick="goPage(-1)" style="padding:3px 12px;">上一页</button>
+      <div id="pageBtns" style="display:flex; gap:4px; align-items:center; flex-wrap:nowrap; min-width:0; overflow:hidden; justify-content:center;"></div>
+      <button class="secondary" onclick="goPage(1)" style="padding:3px 12px;">下一页</button>
+      <span class="sub" id="pageInfo"></span>
+      <span class="sub">每页</span>
+      <select id="pageSizeSel" onchange="setPageSize(this.value)" style="width:auto; padding:3px;">
+        <option value="10" selected>10</option>
+        <option value="20">20</option>
+        <option value="50">50</option>
+        <option value="100">100</option>
+      </select>
+      <span class="sub">跳转</span>
+      <select id="jumpMode" style="width:auto; padding:3px;"><option value="page">页码</option><option value="id">编号</option></select>
+      <input type="number" id="jumpVal" min="1" style="width:90px; padding:3px;" placeholder="值" onkeydown="if(event.key==='Enter')doJump()">
+      <button class="secondary" onclick="doJump()" style="padding:3px 10px;">跳转</button>
+    </div>
+    <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:10px;">
+      <input id="searchBox" placeholder="搜索：题号 / 标题 / 知识点标签" style="width:240px; margin:0;" oninput="applyFilter()">
+      <button class="secondary" id="clearFilter" onclick="clearFilter()" style="display:none; padding:3px 10px;">✕ 清除筛选</button>
+    </div>
+    <div id="tagBar" style="display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;"></div>
+  </div>
+</div>
+<script>
+initPager();
+async function loadProbs() {
+  const [d, me] = await Promise.all([
+    (await fetch('api/problems')).json(),
+    (await fetch('api/auth/me')).json().catch(() => ({ user: null })),
+  ]);
+  const isAdmin = !!(me.user && (me.user.role === 'admin' || me.user.role === 'superadmin') && localStorage.getItem('tgboj_mode') !== 'user');
+  // 管理员「普通用户界面」模式下与普通用户一致：不显示隐藏题
+  const list = isAdmin ? d.problems : d.problems.filter((p) => !p.hidden);
+  window._fullList = list;
+  $('info').textContent = `共 ${list.length} 道题`;
+  window._isAdmin = isAdmin;
+  lastList = list;
+  renderTagBar();
+  const pages = Math.max(1, Math.ceil(list.length / PAGE_SIZE));
+  if (PAGE > pages) PAGE = pages;
+  renderPage();
+}
+loadProbs();
+// 登录成功（gate.js 弹窗登录 / 会话恢复）后重新拉取题目列表（管理员登录后可见隐藏题）
+window.addEventListener('tgboj:auth', loadProbs);
+function renderPage() {
+  const list = lastList;
+  const rows = $('rows');
+  rows.innerHTML = '';
+  if (!list.length) {
+    rows.innerHTML = '<tr><td colspan="6" class="sub">暂无题目</td></tr>';
+    $('pager').style.display = 'none';
+    return;
+  }
+  const pages = Math.ceil(list.length / PAGE_SIZE);
+  $('pager').style.display = 'flex';
+  $('pageInfo').textContent = `共 ${list.length} 道题`;
+  renderPager(pages);
+  const start = (PAGE - 1) * PAGE_SIZE;
+  for (const p of list.slice(start, start + PAGE_SIZE)) {
+    const tr = document.createElement('tr');
+    tr.id = 'p' + p.id;
+    tr.style.cursor = 'pointer';
+    tr.onclick = () => { location.href = 'problem.html?id=' + p.id; };
+    tr.innerHTML = `<td><b>${p.id}</b></td><td>${esc(p.title)}${(p.tags || []).map((t) => ' <span class="badge">' + esc(t) + '</span>').join('')}${p.judgeable === false ? ' <span class="badge">仅题面</span>' : ''}${p.hidden ? ' <span class="badge">已隐藏</span>' : ''}</td><td class="sub">[${p.acCount}/${p.triedCount}]</td><td>${p.judgeable === false ? '—' : Math.round(p.timeLimitSec * 1000) + ' ms'}</td><td>${p.judgeable === false ? '—' : Math.round(p.memLimitKb/1024) + 'MB'}</td>
+      <td style="text-align:right; white-space:nowrap;"><a class="btn-link" href="problem.html?id=${p.id}">进入题目 →</a>${window._isAdmin
+        ? `<button class="${p.hidden ? 'btn-warn' : 'btn-ok'}" title="${p.hidden ? '点击后开放' : '点击后隐藏'}" style="padding:4px 10px; font-size:12px; margin-left:8px;" onclick="event.stopPropagation();toggleProblem(${p.id},${!p.hidden})">${p.hidden ? '隐藏' : '开放'}</button>`
+        : ''}</td>`;
+    rows.appendChild(tr);
+  }
+}
+let searchKw = '';
+let activeTag = '';
+function renderTagBar() {
+  const full = window._fullList || lastList || [];
+  const cnt = {};
+  for (const p of full) for (const t of (p.tags || [])) cnt[t] = (cnt[t] || 0) + 1;
+  const tags = Object.keys(cnt).sort();
+  $('tagBar').innerHTML = tags.length
+    ? tags.map((t) => `<button class="secondary${activeTag === t ? ' tag-on' : ''}" style="padding:3px 10px; font-size:12px;" onclick="setTag(${JSON.stringify(t).replace(/"/g, '&#34;')})">${esc(t)} <span class="sub">${cnt[t]}</span></button>`).join('')
+    : '<span class="sub">还没有知识点标签（管理员可在题目编辑中添加）</span>';
+}
+function applyFilter() {
+  searchKw = ($('searchBox').value || '').trim().toLowerCase();
+  const full = window._fullList || lastList || [];
+  let list = full;
+  if (searchKw) {
+    list = list.filter((p) => String(p.id).includes(searchKw) || (p.title || '').toLowerCase().includes(searchKw) || (p.tags || []).some((t) => t.toLowerCase().includes(searchKw)));
+  }
+  if (activeTag) list = list.filter((p) => (p.tags || []).indexOf(activeTag) !== -1);
+  lastList = list;
+  $('clearFilter').style.display = (searchKw || activeTag) ? 'inline-block' : 'none';
+  $('info').textContent = `共 ${list.length} 道题` + (list.length !== full.length ? ` / 全部 ${full.length} 道` : '');
+  PAGE = 1;
+  renderPage();
+  renderTagBar();
+}
+function setTag(t) {
+  activeTag = activeTag === t ? '' : t;
+  applyFilter();
+}
+function clearFilter() {
+  $('searchBox').value = '';
+  activeTag = '';
+  applyFilter();
+}
+async function toggleProblem(pid, hidden) {
+  const r = await fetch('api/admin/problem/hide', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ problemId: pid, hidden }) });
+  const d = await r.json();
+  if (!r.ok) { alert(d.error || '操作失败'); return; }
+  location.reload();
+}
+</script>
+</body>
+</html>

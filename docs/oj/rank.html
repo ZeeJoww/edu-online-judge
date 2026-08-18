@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>排行榜 - TGBOJ</title>
+<link rel="stylesheet" href="style.css">
+<script>window.GATE_REQUIRED = false;</script>
+<script src="gate.js"></script>
+<script src="demo-mock.js"></script>
+</head>
+<body>
+<div class="wrap rank-wrap">
+  <div class="card">
+    <div class="toolbar"><h2 style="margin:0">🏆 排行榜</h2>
+      <select id="sessionSel" style="width:auto; margin-left:12px; padding:6px 10px;" onchange="switchSession()"></select>
+      <span style="margin-left:auto; display:flex; align-items:center; gap:10px;">
+        <label class="sub" style="cursor:pointer; user-select:none;"><input type="checkbox" id="autoRef" checked onchange="toggleAuto()"> 实时更新</label>
+        <label class="sub" style="cursor:pointer; user-select:none;"><input type="checkbox" id="fullTitle" onchange="toggleFullTitle()"> 题目全名</label>
+        <button class="secondary" onclick="load()" title="刷新" style="padding:4px 10px;">🔄</button>
+        <span class="sub" id="lastUpd"></span>
+      </span>
+    </div>
+    <p class="sub" style="margin-bottom:8px;">规则：<b>高分在前</b>，同分<b>早完成（AC）在前</b>。</p>
+    <div style="overflow-x:auto;">
+    <table id="rtable" style="width:100%;">
+      <thead>
+        <tr id="rhead"></tr>
+        <tr id="rhead2"></tr>
+      </thead>
+      <tbody id="rrows"></tbody>
+    </table>
+    </div>
+  </div>
+</div>
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+// 排行榜题目名：默认显示 5 个字宽度，超过 5 个字则显示前 4 个字 + 省略号；勾选「题目全名」后显示完整题目名
+let FULL_TITLE = localStorage.getItem('tgboj_rank_fulltitle') === '1';
+const fmtTitle = (t) => { const s = String(t ?? ''); return FULL_TITLE ? s : (s.length > 5 ? s.slice(0, 4) + '…' : s); };
+window.toggleFullTitle = function () {
+  FULL_TITLE = $('fullTitle').checked;
+  localStorage.setItem('tgboj_rank_fulltitle', FULL_TITLE ? '1' : '0');
+  load();
+};
+let SORT = 'score', DIR = 'desc';
+const SORTS = { user: '用户名', name: '姓名', score: '总分' };
+// 期次：URL ?session= 优先，其次 localStorage（全站统一），默认最新(0)
+let CUR_SESSION = 0;
+{
+  const u = parseInt(new URLSearchParams(location.search).get('session'), 10);
+  if (Number.isInteger(u) && u >= 0) CUR_SESSION = u;
+  else { const l = parseInt(localStorage.getItem('tgboj_hw_session'), 10); if (Number.isInteger(l) && l >= 0) CUR_SESSION = l; }
+}
+function fillSessionSel(sessions, cur) {
+  const sel = $('sessionSel');
+  if (!sel) return;
+  sel.innerHTML = '';
+  for (const s of (sessions || [])) {
+    const opt = document.createElement('option');
+    opt.value = s.id;
+    opt.textContent = s.name + (s.id === 0 ? '（当前）' : '');
+    sel.appendChild(opt);
+  }
+  sel.value = String(cur);
+}
+window.switchSession = function () {
+  const v = parseInt($('sessionSel').value, 10) || 0;
+  localStorage.setItem('tgboj_hw_session', String(v));
+  const sp = new URLSearchParams(location.search);
+  if (v === 0) sp.delete('session'); else sp.set('session', String(v));
+  const qs = sp.toString();
+  location.href = qs ? 'rank.html?' + qs : 'rank.html';
+};
+
+function headCell(label, key, link, noSort, fullTitle) {
+  const th = document.createElement('th');
+  const ttl = fullTitle ? ` title="点击查看题目：${esc(fullTitle)}"` : ' title="点击查看题目"';
+  const lab = link
+    ? `<a class="rank-phead" href="problem.html?id=${link}"${ttl}>${label}</a>`
+    : `<span style="white-space:nowrap;">${label}</span>`;
+  th.innerHTML = noSort
+    ? `${lab}`
+    : `${lab}
+    <span class="sort-col">
+      <span class="sort-arr ${SORT === key && DIR === 'asc' ? 'on' : ''}" onclick="event.stopPropagation();goSort('${key}','asc')">▲</span>
+      <span class="sort-arr ${SORT === key && DIR === 'desc' ? 'on' : ''}" onclick="event.stopPropagation();goSort('${key}','desc')">▼</span>
+    </span>`;
+  return th;
+}
+function goSort(key, dir) { SORT = key; DIR = dir; load(); }
+let autoTimer = null;
+function toggleAuto() {
+  if (autoTimer) { clearInterval(autoTimer); autoTimer = null; }
+  if ($('autoRef').checked) autoTimer = setInterval(load, 5000); // 每 5 秒实时更新
+}
+async function load() {
+  $('rtable').classList.toggle('full-title', FULL_TITLE);
+  if ($('fullTitle')) $('fullTitle').checked = FULL_TITLE;
+  let d;
+  try { d = await (await fetch(`api/rank?sort=${encodeURIComponent(SORT)}&dir=${DIR}&session=${CUR_SESSION}`).then(r => { if (r.status === 401) { gateLogin(); throw new Error('login required'); } return r; })).json(); }
+  catch (e) { $('lastUpd').textContent = '加载失败，稍后自动重试'; return; } // L-11：网络失败不再静默
+  CUR_SESSION = d.session || 0;
+  fillSessionSel(d.sessions, d.session);
+  $('lastUpd').textContent = '更新于 ' + new Date().toLocaleTimeString('zh-CN', { hour12: false });
+  const must = d.problems.filter((p) => p.star);
+  const rest = d.problems.filter((p) => !p.star);
+  const ordered = must.concat(rest); // 分栏：必做题在前，选做题在后
+  const head = $('rhead');
+  head.innerHTML = '<th rowspan="2">排名</th><th rowspan="2">用户名</th><th rowspan="2">姓名</th><th rowspan="2">总分</th>';
+  const hws = d.homeworkCols || [];
+  if (hws.length) head.appendChild(Object.assign(document.createElement('th'), { colSpan: hws.length, className: 'rank-hw-head', textContent: '文本作业' }));
+  if (must.length) head.appendChild(Object.assign(document.createElement('th'), { colSpan: must.length, className: 'rank-must-head', textContent: '★ 必做题' }));
+  if (rest.length) head.appendChild(Object.assign(document.createElement('th'), { colSpan: rest.length, className: 'rank-rest-head', textContent: '选做题' }));
+  const head2 = $('rhead2');
+  head2.innerHTML = '';
+  for (const hw of hws) {
+    // 与编程题列相同的结构：a.rank-phead 两行（第一行标题、第二行编号）+ 8ch 宽度限制
+    const th = document.createElement('th');
+    th.innerHTML = `<a class="rank-phead" href="#" onclick="return false;" title="${esc(hw.title)}">
+        <span class="rank-ptitle">${esc(hw.title)}</span><span class="rank-pid">作业 #${hw.id}</span></a>`;
+    th.className = 'rank-hw-col';
+    head2.appendChild(th);
+  }
+  for (let i = 0; i < ordered.length; i++) {
+    const p = ordered[i];
+    const cell = headCell(`<span class="rank-ptitle">${esc(fmtTitle(p.title))}</span><span class="rank-pid">#${p.id}</span>`, 'p' + p.id, p.id, true, p.title);
+    cell.className += (i < must.length ? ' rank-must-col' : ' rank-rest-col'); // 题目名行附组色（更淡）
+    head2.appendChild(cell);
+  }
+  const body = $('rrows');
+  body.innerHTML = '';
+  if (!d.rows.length) { body.innerHTML = '<tr><td colspan="' + (4 + ordered.length + hws.length) + '" class="sub">暂无提交</td></tr>'; return; }
+  for (const r of d.rows) {
+    const tr = document.createElement('tr');
+    const medal = r.rank === 1 ? '🥇' : r.rank === 2 ? '🥈' : r.rank === 3 ? '🥉' : '';
+    const isAdminRow = window.ME && (window.ME.role === 'admin' || window.ME.role === 'superadmin') && (localStorage.getItem('tgboj_mode') !== 'user');
+    const userCell = isAdminRow
+      ? `<a class="btn-link" href="javascript:void(0)" title="给 ${esc(r.username)} 发消息" onclick='gateMsgCompose(${JSON.stringify(r.username)},${JSON.stringify(r.fullname || r.username)})'>${esc(r.username)}</a>`
+      : esc(r.username);
+    tr.innerHTML = `<td><b>${r.rank}</b> ${medal}</td><td>${userCell}</td><td>${esc(r.fullname)}</td><td><b>${r.total}</b></td>`;
+    for (const hw of hws) {
+      const cell = document.createElement('td');
+      cell.className = 'rank-col-td';
+      cell.style.textAlign = 'center';
+      const hs = r.homeworks && r.homeworks[hw.id];
+      if (hs && hs.score > 0) {
+        // 分数越高底色越深：50 分明显浅于 100 分
+        const alpha = 0.12 + 0.48 * hs.score / 100;
+        cell.style.background = 'rgba(34, 197, 94, ' + alpha.toFixed(3) + ')';
+        cell.textContent = hs.score;
+        cell.title = '教师评分 ' + hs.score + ' 分';
+      } else {
+        cell.textContent = '0';
+        cell.title = '待审核 / 未通过';
+      }
+      tr.appendChild(cell);
+    }
+    for (const p of ordered) {
+      const cell = document.createElement('td');
+      cell.className = 'rank-col-td';
+      const pt = r.problems[p.id];
+      cell.style.textAlign = 'center'; // 分数居中
+      if (pt && pt.score > 0) {
+        // 通过(AC/满分)深绿；部分分按比例深浅（alpha 与分数成正比）
+        const alpha = pt.ac ? 0.60 : (0.12 + 0.45 * pt.score / 100);
+        cell.style.background = 'rgba(34, 197, 94, ' + alpha.toFixed(3) + ')';
+        cell.title = pt.exStar ? '已通过（AC），但未通过 Ex 数据' : (pt.ac ? '已通过（AC）' : '部分得分 ' + pt.score + ' 分');
+      } else if (pt && pt.tries) {
+        // 有提交但 0 分：很淡的绿色
+        cell.style.background = 'rgba(34, 197, 94, 0.05)';
+      }
+      if (pt && pt.tries) {
+        // 有提交即可点击查看（含 0 分 / 未通过）
+        const a = document.createElement('a');
+        a.className = 'rank-cell';
+        a.textContent = `${pt.score}(${pt.tries})`;
+        a.href = `status.html?user=${encodeURIComponent(r.username)}&problem=${p.id}`;
+        a.title = `查看 ${esc(r.fullname)} 在题目 ${p.id} 的提交`;
+        cell.appendChild(a);
+        if (pt.exStar) {
+          const star = document.createElement('span');
+          star.className = 'ex-star';
+          star.textContent = '*';
+          star.title = '未通过 Ex 数据';
+          cell.appendChild(star);
+        }
+      } else {
+        cell.textContent = '—';
+      }
+      tr.appendChild(cell);
+    }
+    body.appendChild(tr);
+  }
+}
+if ($('fullTitle')) $('fullTitle').checked = FULL_TITLE;
+load();
+// 登录成功（gate.js 弹窗登录 / 会话恢复）后重新拉取排行榜（公网登录墙下未登录会 401）
+window.addEventListener('tgboj:auth', load);
+toggleAuto();
+</script>
+</body>
+</html>

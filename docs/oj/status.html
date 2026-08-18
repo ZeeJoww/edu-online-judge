@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>评测状态 - TGBOJ</title>
+<link rel="stylesheet" href="style.css">
+<script>window.GATE_REQUIRED = false;</script>
+<script src="gate.js"></script>
+<script src="common.js"></script>
+<script src="demo-mock.js"></script>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <div class="toolbar">
+      <h2 style="margin:0">评测状态</h2>
+      <span class="sub" id="info"></span>
+    </div>
+    <table>
+      <thead><tr><th>ID</th><th>题目</th><th>用户</th><th>语言</th><th>状态</th><th>时间</th><th>提交时间</th><th></th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <div class="pager" id="pager" style="display:none; margin-top:10px; align-items:center; gap:10px; justify-content:center;">
+      <button class="secondary" onclick="goPage(-1)" style="padding:3px 12px;">上一页</button>
+      <div id="pageBtns" style="display:flex; gap:4px; align-items:center; flex-wrap:nowrap; min-width:0; overflow:hidden; justify-content:center;"></div>
+      <button class="secondary" onclick="goPage(1)" style="padding:3px 12px;">下一页</button>
+      <span class="sub" id="pageInfo"></span>
+      <span class="sub">每页</span>
+      <select id="pageSizeSel" onchange="setPageSize(this.value)" style="width:auto; padding:3px;">
+        <option value="10" selected>10</option>
+        <option value="20">20</option>
+        <option value="50">50</option>
+        <option value="100">100</option>
+      </select>
+      <span class="sub">跳转</span>
+      <select id="jumpMode" style="width:auto; padding:3px;"><option value="page">页码</option><option value="id">编号</option></select>
+      <input type="number" id="jumpVal" min="1" style="width:90px; padding:3px;" placeholder="值" onkeydown="if(event.key==='Enter')doJump()">
+      <button class="secondary" onclick="doJump()" style="padding:3px 10px;">跳转</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-mask" id="mask"><div class="modal" id="modal"></div></div>
+<div id="toast"></div>
+<script>
+const fmtTime = (t) => {
+  if (!t) return '';
+  const d = new Date(t);
+  const time = d.toLocaleTimeString('zh-CN', { hour12: false });
+  const sameDay = new Date().toDateString() === d.toDateString();
+  const datePart = (d.getMonth() + 1) + '-' + String(d.getDate()).padStart(2, '0');
+  return sameDay ? time : datePart + ' ' + time;
+};
+
+let ME = null;
+let ALLOW_TEST_OUT = false;
+let AI_ENABLED = false;
+const meReady = fetch('api/auth/me').then(r => r.json()).then(d => { ME = d.user; ALLOW_TEST_OUT = !!d.allowTestOutputDownload; AI_ENABLED = !!d.aiReviewEnabled; }).catch(() => {});
+let FILTER_USER = new URLSearchParams(location.search).get('user') || '';
+let FILTER_PROB = new URLSearchParams(location.search).get('problem') || '';
+initPager();
+TGBOJ.rowPrefix = 's';
+let lastList = [];
+function statusParams(extra) {
+  const sp = new URLSearchParams(extra || {});
+  const isAdminMode = ME && (ME.role === 'admin' || ME.role === 'superadmin') && localStorage.getItem('tgboj_mode') !== 'user';
+  if (!isAdminMode) sp.set('excludeAdmins', '1');
+  if (FILTER_USER) sp.set('user', FILTER_USER);
+  if (FILTER_PROB) sp.set('problem', FILTER_PROB);
+  return sp.toString();
+}
+async function refresh() {
+  await meReady;
+  let d, resp;
+  try {
+    resp = await fetch('api/status?' + statusParams({ page: PAGE, size: PAGE_SIZE })); if (resp.status === 401) { gateLogin(); return; } d = await resp.json();
+  } catch (e) { return; }
+  for (const p of (d.problems || [])) testCountMap[p.id] = p.testCount;
+  const total = d.total != null ? d.total : (d.list || []).length;
+  window.totalCount = total;
+  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  if (PAGE > pages) { PAGE = pages; window.syncUrl(); return refresh(); }
+  lastList = d.list || [];
+  if (FILTER_USER || FILTER_PROB) {
+    $('info').innerHTML = FILTER_USER
+      ? `用户 <b>${esc(FILTER_USER)}</b> 在题目 <b>${esc(FILTER_PROB || '全部')}</b> 的提交（共 ${total} 份） · <a class="btn-link" style="padding:2px 10px; font-size:12px;" href="status.html">返回全部</a>`
+      : `题目 <b>${esc(FILTER_PROB)}</b> 的提交（共 ${total} 份） · <a class="btn-link" style="padding:2px 10px; font-size:12px;" href="status.html">返回全部</a>`;
+  } else {
+    $('info').textContent = `共 ${total} 份提交 · ${d.problems.length} 道题`;
+  }
+  renderRows();
+}
+// 分页组件跳页后调用：服务端分页 → 按当前 PAGE 重新拉取本页
+function renderPage() { refresh(); }
+window.jumpById = async function (id) {
+  await meReady;
+  let d;
+  try { d = await (await fetch('api/status?' + statusParams({ find: id, size: PAGE_SIZE }))).json(); } catch (e) { return; }
+  const hit = (d.list || []).find((x) => x.id === id);
+  if (!hit) { alert('未找到编号 ' + id); return; }
+  PAGE = d.page || 1;
+  lastList = d.list || [];
+  window.totalCount = d.total != null ? d.total : lastList.length;
+  window.syncUrl();
+  renderRows();
+  setTimeout(() => { const el = document.getElementById('s' + id); if (el) { el.scrollIntoView({ block: 'center' }); el.style.background = 'rgba(59,130,246,.18)'; setTimeout(() => { el.style.background = ''; }, 2000); } }, 50);
+};
+function renderRows() {
+  const list = lastList;
+  const rows = $('rows');
+  rows.innerHTML = '';
+  if (!list.length) {
+    rows.innerHTML = '<tr><td colspan="8" class="sub">没有符合条件的提交</td></tr>';
+    $('pager').style.display = 'none';
+    return;
+  }
+  const total = window.totalCount != null ? window.totalCount : list.length;
+  const pages = Math.ceil(total / PAGE_SIZE);
+  $('pager').style.display = 'flex';
+  $('pageInfo').textContent = `共 ${total} 条`;
+  renderPager(pages);
+  for (const s of list) {
+    const tr = document.createElement('tr');
+    tr.id = 's' + s.id;
+    const isAdminRow = ME && (ME.role === 'admin' || ME.role === 'superadmin') && (localStorage.getItem('tgboj_mode') !== 'user');
+    const nameCell = isAdminRow && s.username
+      ? `<a class="btn-link" href="javascript:void(0)" title="给 ${esc(s.username)} 发消息" onclick='gateMsgCompose(${JSON.stringify(s.username)},${JSON.stringify(s.name || s.username)})'>${esc(s.name)}</a>`
+      : esc(s.name);
+    tr.innerHTML = `<td><a href="javascript:void(0)" class="btn-link" onclick="openDetail(${s.id})" title="查看详情与代码">#${s.id}</a></td><td class="sub"><a class="btn-link" href="problem.html?id=${esc(s.problemId)}" title="打开题目">${esc(s.problemId)} · ${esc(s.problemTitle)}</a></td><td>${nameCell}</td><td>${esc(s.std)}</td><td>${statusHtml(s)}</td>
+      <td>${s.summary && s.summary.timeMs != null ? (s.summary.timeMs / 1000).toFixed(2) + 's' : '—'}</td>
+      <td class="sub">${fmtTime(s.submittedAt)}</td>
+      <td style="text-align:right; white-space:nowrap;"><button class="secondary" onclick="openDetail(${s.id})">详情 / 代码</button></td>`;
+    rows.appendChild(tr);
+  }
+}
+
+async function openDetail(id) {
+  await meReady;
+  const isAdminView = ME && (ME.role === 'admin' || ME.role === 'superadmin') && (localStorage.getItem('tgboj_mode') !== 'user');
+  const r = await fetch('api/submission/' + id);
+  if (!r.ok) { alert('无法加载提交详情'); return; }
+  const s = await r.json();
+  const mask = $('mask'), modal = $('modal');
+  // AI 拦截：学生本人只见拦截说明（无评测细节/代码）
+  if (s.blocked) {
+    modal.innerHTML = `<h3>提交 #${id} · 题目 ${esc(s.problemId)} · ${esc(s.name)}</h3>
+    <div style="margin-top:10px;"><span class="v-err">已拦截</span></div>
+    <div class="actions" style="margin-top:12px;"><button class="secondary" onclick="closeModal()">关闭</button></div>`;
+    mask.classList.add('open');
+    return;
+  }
+  if (s.verdictHidden) {
+    modal.innerHTML = `<h3>提交 #${id} · 题目 ${esc(s.problemId)} ${esc(s.problemTitle)} · ${esc(s.name)}</h3>
+    <div style="margin-top:10px;"><span class="v-run">已评测 · 成绩暂不公布</span></div>
+    <p class="sub" style="margin:12px 0;">该提交属于模考，成绩将在考试结束后统一公布${s.publishAt ? '（公布时间：' + new Date(s.publishAt).toLocaleString('zh-CN', { hour12:false }) + '）' : ''}。</p>
+    <div class="actions"><button class="secondary" onclick="closeModal()">关闭</button></div>`;
+    mask.classList.add('open');
+    return;
+  }
+  let badPt = null;
+  let grid = '<div class="point-grid">';
+  if (s.points && s.points.length) {
+    for (const p of s.points) {
+      const ok = p.verdict === 'AC';
+      grid += `<div class="point ${ok ? 'ac' : (p.verdict === 'CE' ? 'ce' : 'bad')}" title="测试点 #${esc(p.id)}: ${esc(p.verdict)} · ${p.timeMs}ms · ${Math.round((p.memKb||0)/1024)}MB">
+        <span class="pid">#${esc(p.id)}</span>${ok ? '✓' : p.verdict}</div>`;
+    }
+  } else grid += '<span class="sub">尚未评测</span>';
+  grid += '</div>';
+  // Ex 附加点（不计分）逐点展示（Ex 为 hack 数据，只支持下载、不在页面内联展示）
+  let exHtml = '';
+  if (s.exPoints && s.exPoints.length) {
+    exHtml = `<div style="margin:12px 0 4px; font-weight:bold;">Ex 附加点（不计分）</div><div class="point-grid">` +
+      s.exPoints.map((p) => {
+        const ok = p.verdict === 'AC';
+        return `<div style="border:1px solid var(--line); border-radius:6px; padding:4px 8px; text-align:center;" title="Ex测试点 #${esc(p.id)}: ${esc(p.verdict)} · ${p.timeMs}ms · ${Math.round((p.memKb||0)/1024)}MB">
+          <span style="font-size:11px; font-weight:700; color:${ok ? 'var(--green)' : 'var(--red)'};">#${esc(p.id)} ${ok ? '✓' : esc(p.verdict)}</span>
+          <div style="margin-top:4px; display:flex; gap:4px; justify-content:center;">
+            <button class="secondary" style="padding:1px 6px; font-size:10px;" onclick="downloadEx(${id},'${esc(p.id)}','in')">↓输入</button>
+            <button class="secondary" style="padding:1px 6px; font-size:10px;" onclick="downloadEx(${id},'${esc(p.id)}','out')">↓期望</button>
+            <button class="secondary" style="padding:1px 6px; font-size:10px;" onclick="downloadEx(${id},'${esc(p.id)}','actual')">↓我的</button>
+          </div>
+        </div>`;
+      }).join('') + `</div>`;
+  }
+  // part1：样例情况（多组样例逐组展示）
+  let sampleHtml = '';
+  if (s.sampleResults && s.sampleResults.length) {
+    sampleHtml = `<div style="margin:12px 0 4px; font-weight:bold;">样例情况</div>
+      <div class="point-grid">` +
+      s.sampleResults.map((sp) => {
+        const ok = sp.verdict === 'AC';
+        return `<div class="point ${ok ? 'ac' : (sp.verdict === 'CE' ? 'ce' : 'bad')}" onclick="showSample(${id},'${sp.id}')" style="cursor:pointer;" title="样例${sp.id}: ${sp.verdict} · ${sp.timeMs}ms · ${Math.round((sp.memKb||0)/1024)}MB（点击查看输入/输出/你的输出）">
+          <span class="pid">样例${sp.id}</span>${ok ? '✓' : sp.verdict}</div>`;
+      }).join('') + `</div>`;
+  }
+  // part2：测试点情况
+  const ptHtml = `<div style="margin:12px 0 4px; font-weight:bold;">测试点情况${s.points && s.points.length ? '（' + s.points.length + '）' : ''}</div>` + grid;
+  // 子任务得分（OI 部分分题）
+  let subtaskHtml = '';
+  if (s.subtaskResults && s.subtaskResults.length) {
+    subtaskHtml = `<div style="margin:12px 0 4px; font-weight:bold;">子任务得分</div><div class="point-grid">` +
+      s.subtaskResults.map((st) => {
+        const ok = st.pass;
+        return `<div class="point ${ok ? 'ac' : 'bad'}" title="子任务 ${esc(st.id)}：${ok ? '通过' : '未通过（' + esc(st.verdict) + '）'} · 覆盖测试点 ${esc((st.tests || []).join(','))}">
+          <span class="pid">子任务${esc(st.id)}</span>${ok ? st.score + 'index.html' + st.maxScore : '0/' + st.maxScore}</div>`;
+      }).join('') + `</div>`;
+  }
+  // 得分徽章（子任务部分分题显示 0~100）
+  const scoreHtml = (s.score != null && s.summary && s.summary.verdict !== 'CE')
+    ? `<div style="margin:8px 0 0;"><span class="badge" style="background:var(--accent); color:#fff;">得分 ${s.score} / 100</span></div>`
+    : '';
+  let helpBtn = '';
+  if (s.help && s.help.status === 'open') {
+    helpBtn = '<button disabled title="已发送求助，等待教师处理">🙋 已求助</button>';
+  } else if (s.canHelp) {
+    helpBtn = `<button onclick="requestHelp(${id})">🙋 求助教师</button>`;
+  } else if (s.isOwn && !s.inCurrentPeriod) {
+    helpBtn = '<button disabled title="仅当前期次的编程题提交可发起求助">🙋 仅当前期次可求助</button>';
+  }
+  const helpLine = s.help
+    ? `<div style="margin:8px 0 0;" class="sub">求助状态：${s.help.status === 'open' ? '<span style="color:#f59e0b;font-weight:bold;">待教师处理</span>' : '已处理'}</div>`
+    : '';
+  modal.innerHTML = `<h3>提交 #${id} · 题目 ${esc(s.problemId)} ${esc(s.problemTitle)} · ${esc(s.name)} · ${esc(s.std)}</h3>
+    <div>${statusHtml(s)}${scoreHtml}</div>
+    ${s.summary && s.summary.hint ? `<div style="margin:8px 0 0; border-left:3px solid var(--accent); background:rgba(59,130,246,.07); border-radius:6px; padding:7px 12px; font-size:13px;">💡 ${esc(s.summary.hint)}</div>` : ''}
+    ${helpBtn ? `<div style="margin:8px 0 0; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">${helpBtn}</div>` : ''}
+    ${subtaskHtml}
+    ${sampleHtml}
+    <div id="sampleDetail"></div>
+    ${ptHtml}
+    ${exHtml}
+    ${s.summary && s.summary.compileError ? `<div class="err">${esc(s.summary.compileError)}</div>` : ''}
+    ${isAdminView && s.aiReview ? aiReviewHtml(s.aiReview) : ''}
+    ${isAdminView && s.aiBlocked ? '<div style="margin:8px 0 0;"><span class="badge" style="background:#ef4444; color:#fff;">已自动拦截（学生端显示「已拦截」）</span></div>' : ''}
+    <div id="aiResult"></div>
+    ${helpLine}
+    <div class="actions">
+      <button onclick="gateEnsureLogin(function(){ viewCode(${id}); })">查看代码</button>
+      ${isAdminView ? `<button id="editBtn" class="primary" style="display:none;" onclick="submitEdit()">保存并评测</button>` : ''}
+      ${isAdminView ? `<button onclick="rejudgeSub(${id})">重测</button>` : ''}
+      ${isAdminView && AI_ENABLED ? `<button onclick="aiReview(${id}, this)">🤖 AI 风险检测</button>` : ''}
+      ${isAdminView && s.aiBlocked ? `<button class="secondary" onclick="aiUnblock(${id})">解除拦截</button>` : ''}
+      ${s.prevId ? `<button class="secondary" onclick="showDiff(${id}, ${s.prevId})" title="对比该用户上一次提交 #${s.prevId}">对比上次 #${s.prevId}</button>` : ''}
+      ${(s.points && !(s.summary && s.summary.verdict === 'CE') && (badPt = s.points.find(p => p.verdict !== 'AC'))) ? `
+      <button onclick="gateEnsureLogin(function(){ downloadBad(${id},'in'); })">下载输入#${esc(badPt.id)}</button>
+      ${(isAdminView || ALLOW_TEST_OUT) ? `<button onclick="gateEnsureLogin(function(){ downloadBad(${id},'out'); })">下载输出#${esc(badPt.id)}</button>` : ''}` : ''}
+      <button class="secondary" onclick="closeModal()">关闭</button>
+    </div>
+    <div style="position:relative;">
+      <pre class="code" id="codebox" style="display:none"></pre>
+      <button id="copyBtn" class="cp-btn cp-ico" onclick="copyCode(this)" title="复制代码" style="position:absolute; top:8px; right:14px; z-index:5; display:none;"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><rect x="9" y="9" width="11" height="11" rx="2"><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button>
+    </div>`;
+  mask.classList.add('open');
+  // 教师端自动展开代码详情
+  if (isAdminView) viewCode(id);
+}
+
+window.requestHelp = async function (id) {
+  const r = await fetch('api/help/request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ submissionId: id }) });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) { alert(d.error || '求助发送失败'); return; }
+  alert('已发送求助，教师稍后会在管理端/公屏看到这份代码');
+  openDetail(id);
+};
+
+// AI 风险检测（管理员；结果缓存，force 重检）
+function aiReviewHtml(rv) {
+  if (!rv) return '';
+  const color = rv.risk === 'high' ? '#ef4444' : rv.risk === 'medium' ? '#f59e0b' : rv.risk === 'low' ? '#3b82f6' : '#16a34a';
+  const label = { none: '无风险', low: '低风险', medium: '中风险', high: '高风险', unknown: '未知' }[rv.risk] || rv.risk;
+  return `<div style="margin:8px 0 0; border:1px solid ${color}; border-radius:8px; padding:8px 12px; font-size:13px;">
+    <b style="color:${color};">🤖 AI 风险：${label}</b>${(rv.categories || []).length ? ' · ' + rv.categories.map(esc).join('、') : ''}
+    ${rv.summary ? `<div class="sub" style="margin-top:4px;">${esc(rv.summary)}</div>` : ''}
+    <div class="sub" style="margin-top:2px; font-size:11px;">${esc(rv.model || '')} · ${fmtTime(rv.at)}</div>
+  </div>`;
+}
+window.aiUnblock = async function (id) {
+  if (!confirm('解除该提交的 AI 拦截？学生将重新可见（不会自动重评，需要时可再点重测）。')) return;
+  const r = await fetch('api/admin/ai-unblock', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ submissionId: id }) });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) { alert(d.error || '操作失败'); return; }
+  openDetail(id);
+  refresh();
+};
+window.aiReview = async function (id, btn) {  const box = $('aiResult');
+  if (btn) { btn.disabled = true; btn.textContent = '🤖 检测中…'; }
+  if (box) box.innerHTML = '<div class="sub" style="margin:8px 0 0;">AI 分析中，请稍候…</div>';
+  try {
+    const r = await fetch('api/admin/ai-review', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ submissionId: id }) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) { if (box) box.innerHTML = `<div class="err" style="margin:8px 0 0;">${esc(d.error || '检测失败')}</div>`; }
+    else if (box) box.innerHTML = aiReviewHtml(d.review);
+  } catch (e) {
+    if (box) box.innerHTML = '<div class="err" style="margin:8px 0 0;">网络错误</div>';
+  }
+  if (btn) { btn.disabled = false; btn.textContent = '🤖 AI 风险检测'; }
+};
+
+let curEditId = null;
+async function viewCode(id) {
+  curEditId = id;
+  const isAdminView = ME && (ME.role === 'admin' || ME.role === 'superadmin') && (localStorage.getItem('tgboj_mode') !== 'user');
+  const box = $('codebox');
+  if (isAdminView) {
+    // 管理员：可编辑 textarea + 保存并评测
+    const ta = document.createElement('textarea');
+    ta.id = 'codebox';
+    ta.className = 'code';
+    ta.spellcheck = false;
+    ta.style.cssText = 'display:block;width:100%;min-height:340px;font-family:"Monaco","Menlo","Consolas","Courier New",monospace;font-size:12px;white-space:pre;overflow:auto;box-sizing:border-box;';
+    ta.value = '加载中…';
+    box.replaceWith(ta);
+    $('copyBtn').style.display = 'none';
+    const r = await fetch(`api/code/${id}`);
+    const txt = await r.text();
+    if (r.ok) { ta.value = txt; lastCode = txt; $('editBtn').style.display = ''; }
+    else { let m = txt; try { m = JSON.parse(txt).error; } catch (e) {} ta.value = '无权查看：' + m; }
+    return;
+  }
+  box.style.display = 'block';
+  box.textContent = '加载中…';
+  const url = `api/code/${id}`;
+  const r = await fetch(url);
+  const txt = await r.text();
+  if (r.ok) { box.textContent = txt; lastCode = txt; $('copyBtn').style.display = ''; }
+  else {
+    let msg = txt;
+    try { msg = JSON.parse(txt).error; } catch (e) {}
+    box.textContent = '无权查看：' + msg + '\n\n提示：管理员可查看全部代码；自己的代码可随时查看（按 IP 识别）；AC 之后可查看他人的 AC 代码（同 IP 需有 AC 提交）。';
+  }
+}
+
+async function submitEdit() {
+  const ta = $('codebox');
+  const code = ta ? ta.value : '';
+  if (!curEditId) { alert('请先查看代码'); return; }
+  if (!code) { alert('代码不能为空'); return; }
+  const btn = $('editBtn');
+  if (btn) { btn.innerHTML = '评测中…'; btn.disabled = true; }
+  try {
+    const r = await fetch('api/admin/rejudge-code', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: curEditId, code }) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) { alert(d.error || '保存并评测失败'); return; }
+    // 新建的提交：轮询新 id，完成后刷新详情（提交编号与提交人随之更新）
+    await pollResult(d.id);
+  } finally {
+    if (btn) { btn.innerHTML = '保存并评测'; btn.disabled = false; }
+  }
+}
+
+async function rejudgeSub(id) {
+  if (!confirm('重测提交 #' + id + '？（保持提交编号，覆盖原评测结果）')) return;
+  const r = await fetch('api/admin/rejudge', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: [id] }) });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) { alert(d.error || '重测失败'); return; }
+  closeModal();
+  refresh();
+}
+
+async function pollResult(id) {
+  const t0 = Date.now();
+  while (Date.now() - t0 < 180000) {
+    await new Promise((r) => setTimeout(r, 1500));
+    try {
+      const rr = await fetch('api/status?' + statusParams({ find: id, size: 100 }));
+      const dd = await rr.json();
+      const s = (dd.list || []).find((x) => x.id === id);
+      if (s && s.status === 'done') { openDetail(id); return; }
+    } catch (e) { /* 网络抖动重试 */ }
+  }
+  alert('评测超时，请稍后在评测状态页查看结果');
+}
+
+async function showSample(subId, sid) {
+  const box = $('sampleDetail');
+  if (!box) return;
+  box.innerHTML = '<span class="sub">加载中…</span>';
+  const r = await fetch(`api/sample/${subId}?sid=${encodeURIComponent(sid)}`);
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) { box.innerHTML = ''; alert(d.error || '无法获取样例详情'); return; }
+  const pre = (t) => '<pre class="sample-box" style="margin:4px 0 12px;">' + esc(t == null ? '' : t) + '</pre>';
+  box.innerHTML = `<div style="margin-top:8px; border-top:1px solid var(--line); padding-top:8px;">
+    <div style="font-weight:bold; margin-bottom:4px;">样例 ${esc(d.id)} · ${esc(d.verdict || '')}</div>
+    ${d.hint && d.verdict !== 'AC' ? `<div class="sub" style="margin-bottom:6px;">💡 ${esc(d.hint)}</div>` : ''}
+    <div class="sub">样例输入</div>${pre(d.input)}
+    <div class="sub">期望输出</div>${pre(d.expected)}
+    <div class="sub">你的输出${d.verdict === 'AC' ? '（与期望一致）' : ''}</div>${pre(d.actual)}</div>`;
+}
+
+function copyCode(btn) {
+  const txt = lastCode || (document.getElementById('codebox') || {}).textContent || '';
+  if (!txt || txt === '加载中…') { alert('请先查看代码'); return; }
+  const done = () => { if (btn) { const old = btn.innerHTML; btn.innerHTML = '✓'; setTimeout(() => btn.innerHTML = old, 1200); } };
+  copyText(txt, done);
+}
+
+async function downloadBad(id, type) {
+  const url = `/api/testcase/${id}?type=${encodeURIComponent(type || 'in')}`;
+  const r = await fetch(url);
+  if (!r.ok) {
+    let msg = await r.text();
+    try { msg = JSON.parse(msg).error; } catch (e) {}
+    alert('下载失败：' + msg);
+    return;
+  }
+  const blob = await r.blob();
+  const cd = r.headers.get('Content-Disposition') || '';
+  const fn = (cd.match(/filename="([^"]+)"/) || [])[1] || ('test' + id + '.' + (type || 'in'));
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = fn;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+async function downloadEx(subId, exid, type) {
+  const url = `/api/excase/${subId}?exid=${encodeURIComponent(exid)}&type=${encodeURIComponent(type || 'in')}`;
+  const r = await fetch(url);
+  if (!r.ok) {
+    let msg = await r.text();
+    try { msg = JSON.parse(msg).error; } catch (e) {}
+    alert('下载失败：' + msg);
+    return;
+  }
+  const blob = await r.blob();
+  const cd = r.headers.get('Content-Disposition') || '';
+  const fn = (cd.match(/filename="([^"]+)"/) || [])[1] || (exid + '.' + (type || 'in'));
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = fn;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+// 行级 diff（LCS）：对比两次提交的代码
+function lcsDiff(a, b) {
+  const n = a.length, m = b.length;
+  const dp = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
+  for (let i = n - 1; i >= 0; i--)
+    for (let j = m - 1; j >= 0; j--)
+      dp[i][j] = a[i] === b[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+  const ops = [];
+  let i = 0, j = 0;
+  while (i < n && j < m) {
+    if (a[i] === b[j]) { ops.push(['same', a[i]]); i++; j++; }
+    else if (dp[i + 1][j] >= dp[i][j + 1]) { ops.push(['del', a[i]]); i++; }
+    else { ops.push(['add', b[j]]); j++; }
+  }
+  while (i < n) ops.push(['del', a[i++]]);
+  while (j < m) ops.push(['add', b[j++]]);
+  return ops;
+}
+window.showDiff = async function (curId, prevId) {
+  let a = '', b = '';
+  try { a = await (await fetch('api/code/' + curId)).text(); } catch (e) {}
+  try { b = await (await fetch('api/code/' + prevId)).text(); } catch (e) {}
+  const al = a.split('\n'), bl = b.split('\n');
+  const ops = lcsDiff(al, bl);
+  let html = '';
+  let la = 0, lb = 0;
+  for (const [op, line] of ops) {
+    if (op === 'same') {
+      html += `<div style="color:var(--text);">${la + 1}&nbsp;${lb + 1}&nbsp;${esc(line) || '&nbsp;'}</div>`;
+      la++; lb++;
+    } else if (op === 'del') {
+      html += `<div style="background:rgba(220,38,38,.12); color:#b91c1c;">${la + 1}&nbsp;&nbsp;&nbsp;- ${esc(line) || '&nbsp;'}</div>`;
+      la++;
+    } else {
+      html += `<div style="background:rgba(22,163,74,.12); color:#15803d;">&nbsp;&nbsp;${lb + 1}&nbsp;+ ${esc(line) || '&nbsp;'}</div>`;
+      lb++;
+    }
+  }
+  const mask = $('mask'), modal = $('modal');
+  modal.innerHTML = `<h3>代码对比 · #${curId}（当前） vs #${prevId}（上次）</h3>
+    <p class="sub" style="margin:4px 0 10px;"><span style="color:#15803d;">+ 新增</span> / <span style="color:#b91c1c;">- 删除</span>（左列=上次行号，右列=当前行号）</p>
+    <pre style="background:var(--btn2); border:1px solid var(--line); border-radius:8px; padding:12px; max-height:60vh; overflow:auto; font-family:'Monaco','Menlo','Consolas','Courier New',monospace; font-size:12.5px; line-height:1.5; white-space:pre-wrap; margin:0;">${html}</pre>
+    <div class="actions"><button class="secondary" onclick="openDetail(${curId})">返回详情</button> <button class="secondary" onclick="closeModal()">关闭</button></div>`;
+  mask.classList.add('open');
+};
+
+function closeModal() { $('mask').classList.remove('open'); }
+$('mask').addEventListener('click', (e) => { if (e.target === $('mask')) closeModal(); });
+
+refresh();
+// 登录成功（gate.js 弹窗登录 / 会话恢复）后以登录身份重新拉取列表（公网登录墙下未登录会 401）
+window.addEventListener('tgboj:auth', function () { ME = window.ME || null; refresh(); });
+let refreshTimer = setInterval(refresh, 5000); // 5 秒轮询（原 2s，放宽降低负载）
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { clearInterval(refreshTimer); refreshTimer = null; }
+  else if (!refreshTimer) { refresh(); refreshTimer = setInterval(refresh, 5000); }
+});
+window.addEventListener('hashchange', () => {
+  const m = location.hash.match(/^#s(\d+)$/);
+  if (m) setTimeout(() => { const el = document.getElementById('s' + m[1]); if (el) { el.scrollIntoView({ block:'center' }); el.style.background = '#fef9c3'; } }, 300);
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>比赛澄清 - TGBOJ</title>
+<link rel="stylesheet" href="style.css">
+<script>window.GATE_REQUIRED = true;</script>
+<script src="gate.js"></script>
+<script src="demo-mock.js"></script>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <h2>❓ 比赛澄清 <span class="badge" id="cState" style="margin-left:8px;"></span></h2>
+    <p class="sub">比赛进行期间可向老师提问（题目相关问题）；老师回复后，公开回复对全体同学可见。</p>
+    <div id="askBox" style="display:none; margin-bottom:14px;">
+      <label class="sub">关联题目（可选）</label>
+      <select id="qProblem" style="margin-bottom:6px;"><option value="0">（不关联题目）</option></select>
+      <textarea id="qText" maxlength="500" placeholder="例如：第 2 题的 n 是否可能为 0？" style="min-height:70px; width:100%;"></textarea>
+      <div class="actions" style="margin-top:6px;">
+        <button id="qSend">提交澄清</button>
+        <span class="err" id="qErr"></span>
+      </div>
+    </div>
+    <div id="listBox"><p class="sub">加载中…</p></div>
+  </div>
+</div>
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const fmtT = (t) => t ? new Date(t).toLocaleString('zh-CN', { hour12: false }) : '';
+let ME = window.ME || null;
+async function getMe() {
+  if (!ME) { try { const d = await (await fetch('api/auth/me')).json(); ME = d.user || null; } catch (e) {} }
+  return ME;
+}
+async function loadProblems() {
+  try {
+    const d = await (await fetch('api/problems')).json();
+    const sel = $('qProblem');
+    for (const p of (d.problems || [])) { // A1-4：/api/problems 返回 {problems:[...]}，此前遍历错对象导致下拉恒空
+      const o = document.createElement('option');
+      o.value = p.id;
+      o.textContent = '#' + p.id + ' ' + p.title;
+      sel.appendChild(o);
+    }
+  } catch (e) { /* ignore */ }
+}
+async function load() {
+  const d = await (await fetch('api/clar')).json();
+  const active = d.contestActive;
+  $('cState').textContent = active ? '比赛进行中' : '未在比赛';
+  $('cState').className = 'badge' + (active ? '' : ' sub');
+  $('askBox').style.display = active ? 'block' : 'none';
+  const list = d.list || [];
+  const me = await getMe();
+  if (!list.length) { $('listBox').innerHTML = '<p class="sub">暂无澄清。</p>'; return; }
+  $('listBox').innerHTML = list.map((x) => {
+    const mine = me && (x.username === me.username);
+    const replyHtml = x.reply
+      ? '<div style="margin-top:8px; padding:8px 10px; background:rgba(34,197,94,.08); border-left:3px solid #22c55e; border-radius:4px;"><b>老师回复' + (x.replyBy ? '（' + esc(x.replyBy) + '）' : '') + (x.public ? ' <span class="badge">公开</span>' : ' <span class="badge" style="background:#f59e0b;">私密</span>') + '</b> · ' + fmtT(x.repliedAt) + '<div style="margin-top:4px;">' + esc(x.reply) + '</div></div>'
+      : (mine ? '<div class="sub" style="margin-top:6px;">等待老师回复…</div>' : '');
+    return '<div style="border-bottom:1px solid rgba(128,128,128,.2); padding:10px 2px;">'
+      + '<b>' + esc(x.fullname || x.username) + '</b> <span class="sub">· ' + fmtT(x.createdAt) + (x.problemId ? ' · 题 #' + x.problemId : '') + (mine ? ' · 我的提问' : '') + '</span>'
+      + '<div style="margin-top:4px; white-space:pre-wrap;">' + esc(x.text) + '</div>'
+      + replyHtml
+      + '</div>';
+  }).join('');
+}
+$('qSend').addEventListener('click', async () => {
+  const err = $('qErr');
+  err.textContent = '';
+  const r = await fetch('api/clar', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ text: $('qText').value, problemId: parseInt($('qProblem').value, 10) || 0 }) });
+  const d = await r.json();
+  if (!r.ok) { err.textContent = d.error || '提交失败'; return; }
+  $('qText').value = '';
+  load();
+});
+window.addEventListener('tgboj:auth', () => { load(); loadProblems(); });
+load();
+loadProblems();
+</script>
+</body>
+</html>

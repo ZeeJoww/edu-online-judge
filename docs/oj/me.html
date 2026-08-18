@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>个人中心 - TGBOJ</title>
+<link rel="stylesheet" href="style.css">
+<script>window.GATE_REQUIRED = true;</script>
+<script src="gate.js"></script>
+<script src="demo-mock.js"></script>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <h2>👤 个人中心</h2>
+    <table class="md-table" style="max-width:520px;">
+      <tr><td class="sub">用户名</td><td id="mUser">—</td></tr>
+      <tr><td class="sub">姓名</td><td id="mName">—</td></tr>
+      <tr><td class="sub">学号/编号</td><td id="mStudentId">—</td></tr>
+      <tr><td class="sub">角色</td><td id="mRole">—</td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>📝 个人简介</h2>
+    <textarea id="mBio" maxlength="200" placeholder="写一句自我介绍 / 目标 / 座右铭（200 字以内）…" style="min-height:90px; width:100%;"></textarea>
+    <div class="actions" style="margin-top:8px;">
+      <button id="saveBio">保存简介</button>
+      <span class="sub" id="bioTip"></span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>🔧 账号操作</h2>
+    <div class="actions">
+      <button id="exportBtn">⬇️ 导出我的所有代码（zip）</button>
+      <button class="secondary" onclick="if (window.gateChangePw) gateChangePw(); else alert('请先登录');">🔒 修改密码</button>
+      <span class="sub" id="expTip"></span>
+    </div>
+    <p class="sub">导出内容：你的全部提交代码（按提交时间排序）+ README.md 清单（题号/题目/判定/分数/时间）。</p>
+  </div>
+</div>
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+async function loadMe() {
+  const r = await fetch('api/auth/me');
+  const d = await r.json();
+  const u = d.user;
+  if (!u) return;
+  $('mUser').textContent = u.username;
+  $('mName').textContent = u.fullname || '—';
+  $('mStudentId').textContent = u.studentId || '—';
+  $('mRole').textContent = u.role === 'superadmin' ? '超级管理员' : (u.role === 'admin' ? '管理员（教师）' : '学生');
+  $('mBio').value = u.bio || '';
+}
+$('saveBio').addEventListener('click', async () => {
+  const tip = $('bioTip');
+  tip.textContent = '';
+  const r = await fetch('api/me/save', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ bio: $('mBio').value }) });
+  const d = await r.json();
+  tip.textContent = r.ok ? '✅ 已保存' : (d.error || '保存失败');
+  if (r.ok) setTimeout(() => { tip.textContent = ''; }, 2000);
+});
+$('exportBtn').addEventListener('click', async () => {
+  const tip = $('expTip');
+  tip.textContent = '打包中…';
+  const r = await fetch('api/my/code/export');
+  if (!r.ok) {
+    let msg = '导出失败';
+    try { msg = (await r.json()).error || msg; } catch (e) {}
+    tip.textContent = msg;
+    return;
+  }
+  const blob = await r.blob();
+  const cd = r.headers.get('Content-Disposition') || '';
+  const m = /filename="([^"]+)"/.exec(cd);
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = m ? m[1] : 'tgboj-codes.zip';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  tip.textContent = '✅ 已开始下载';
+  setTimeout(() => { tip.textContent = ''; }, 2000);
+});
+window.addEventListener('tgboj:auth', loadMe);
+loadMe();
+</script>
+</body>
+</html>

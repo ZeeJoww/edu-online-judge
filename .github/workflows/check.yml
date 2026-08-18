@@ -19,6 +19,11 @@ jobs:
       - name: Check JavaScript syntax
         shell: bash
         run: git ls-files -z '*.js' ':!public/vendor/**' | xargs -0 -n1 node --check
+      - name: Verify generated Pages demo
+        shell: bash
+        run: |
+          node scripts/build-pages-demo.js
+          git diff --exit-code -- docs/oj
       - name: Check JSON and shell syntax
         shell: bash
         run: |

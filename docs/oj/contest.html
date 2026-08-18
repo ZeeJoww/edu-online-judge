@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>比赛 - TGBOJ</title>
+<link rel="stylesheet" href="style.css">
+<script src="demo-mock.js"></script>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <h2>🏆 <span id="cTitle">比赛</span> <span class="badge" id="cMode" style="margin-left:8px;"></span></h2>
+    <p class="sub" id="cStatus">加载中…</p>
+    <div id="rankBox" style="overflow-x:auto;"></div>
+  </div>
+</div>
+<script src="gate.js"></script>
+<script>
+const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const MODE_TEXT = { oi: 'OI（末次提交）', ioi: 'IOI（最高分）', acm: 'ACM（罚时）' };
+const fmtT = (ts) => new Date(ts).toLocaleString('zh-CN', { hour12: false });
+function fmtDur(ms) {
+  if (ms < 0) ms = 0;
+  const s = Math.floor(ms / 1000), p = (n) => String(n).padStart(2, '0');
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+  return h > 0 ? h + ':' + p(m) + ':' + p(sec) : p(m) + ':' + p(sec);
+}
+let timer = null;
+async function load() {
+  let d;
+  try {
+    const r = await fetch('api/contest/rank');
+    d = await r.json();
+    if (!r.ok) throw new Error(d.error || '加载失败');
+  } catch (e) {
+    document.getElementById('cStatus').textContent = (e && e.message === '请先登录') ? '请先登录后查看比赛榜单。' : '榜单加载失败，请刷新重试。';
+    document.getElementById('rankBox').innerHTML = '';
+    return;
+  }
+  const c = d.contest || {};
+  document.getElementById('cTitle').textContent = c.title || '比赛';
+  // 没有比赛时后端返回的 mode 是默认值 oi，不应展示赛制徽章
+  document.getElementById('cMode').textContent = d.status === 'none' ? '' : (MODE_TEXT[c.mode] || '');
+  const st = { none: '暂无比赛', upcoming: '未开始', running: '进行中', ended: '已结束' }[d.status] || '';
+  const fz = d.freeze || {};
+  let fzBanner = '';
+  if (fz.minutes > 0) {
+    if (fz.frozen) fzBanner = ' <span class="badge" style="background:#f59e0b; margin-left:8px;">🔒 已封榜（' + fmtT(fz.startAt) + ' 起冻结，比赛结束后公布）</span>';
+    else if (d.status === 'running') fzBanner = ' <span class="badge sub" style="margin-left:8px;">🔒 封榜于 ' + fmtT(fz.startAt) + '（最后 ' + fz.minutes + ' 分钟）</span>';
+    else if (d.status === 'ended') fzBanner = ' <span class="badge" style="margin-left:8px;">🔓 封榜已解除</span>';
+  }
+  let cd = '';
+  if (d.status === 'upcoming') cd = ' · 距开始 ' + fmtDur(c.startAt - d.now) + '（' + fmtT(c.startAt) + '）';
+  if (d.status === 'running') cd = ' · 剩余 ' + fmtDur(c.endAt - d.now) + '（' + fmtT(c.endAt) + ' 结束）';
+  if (d.status === 'ended') cd = ' · 已结束（' + fmtT(c.endAt) + '）';
+  document.getElementById('cStatus').innerHTML = esc(st + cd) + fzBanner
+    + (d.preview ? ' <span class="badge" style="background:#3b82f6; margin-left:8px;">👁 赛前预览（仅管理员可见）</span>' : '');
+  if (d.status === 'running') { if (!timer) timer = setInterval(load, 10000); }
+  else { if (timer) { clearInterval(timer); timer = null; } }
+  render(d);
+}
+function render(d) {
+  const box = document.getElementById('rankBox');
+  if (!d.rows || !d.rows.length) {
+    // 赛前预览（管理员）：展示题目列与空榜单，便于核对题单
+    if (d.preview && d.problems && d.problems.length) {
+      const heads = ['#', '姓名'].concat(d.problems.map((p) => {
+        const t = p.title.length > 10 ? p.title.slice(0, 10) + '…' : p.title;
+        return '<a href="problem.html?id=' + p.id + '" title="#' + p.id + ' ' + esc(p.title) + '">' + esc(t) + '</a>' + (p.hidden ? ' <span class="badge">已隐藏</span>' : '');
+      }));
+      heads.push((d.contest || {}).mode === 'acm' ? '解题/罚时' : '总分');
+      box.innerHTML = '<p class="sub">预览题目集 = 当前期次编程题（' + d.problems.length + ' 题）；比赛开始后将在此显示实时榜单。</p>'
+        + '<table class="md-table"><thead><tr>' + heads.map((h) => '<th style="text-align:center;">' + h + '</th>').join('') + '</tr></thead><tbody><tr><td colspan="' + heads.length + '" class="sub" style="text-align:center;">（暂无提交）</td></tr></tbody></table>';
+      return;
+    }
+    box.innerHTML = '<p class="sub">暂无提交记录。</p>'; return;
+  }
+  const mode = (d.contest || {}).mode || 'oi';
+  const heads = ['#', '姓名'].concat((d.problems || []).map((p) => {
+    const t = p.title.length > 10 ? p.title.slice(0, 10) + '…' : p.title;
+    return '<a href="problem.html?id=' + p.id + '" title="#' + p.id + ' ' + esc(p.title) + '">' + esc(t) + '</a>';
+  }));
+  heads.push(mode === 'acm' ? '解题/罚时' : '总分');
+  const body = d.rows.map((r) => {
+    let cells = '<td>' + r.rank + '</td><td>' + esc(r.fullname || r.username) + '</td>';
+    for (const p of (d.problems || [])) {
+      const cell = r.cells[p.id] || {};
+      if (mode === 'acm') {
+        cells += '<td style="text-align:center;">' + (cell.solved ? '<b style="color:#16a34a;">✓ ' + cell.attempts + '</b><br><span class="sub">' + cell.penalty + '</span>' : (cell.attempts ? '<span style="color:#dc2626;">✗ ' + cell.attempts + '</span>' : '')) + '</td>';
+      } else {
+        cells += '<td style="text-align:center;">' + (cell.attempts ? '<b>' + (cell.score == null ? 0 : cell.score) + '</b><br><span class="sub">' + cell.attempts + ' 次</span>' : '') + '</td>';
+      }
+    }
+    cells += '<td style="text-align:center;"><b>' + (mode === 'acm' ? r.solved + ' / ' + r.penalty : r.total) + '</b></td>';
+    return '<tr>' + cells + '</tr>';
+  }).join('');
+  box.innerHTML = '<table class="md-table"><thead><tr>' + heads.map((h) => '<th style="text-align:center;">' + h + '</th>').join('') + '</tr></thead><tbody>' + body + '</tbody></table>';
+}
+load();
+// 登录成功后（gate.js 弹窗登录 / 会话恢复）重新拉取榜单，避免停留在「请先登录」提示
+window.addEventListener('tgboj:auth', function () { load(); });
+</script>
+</body>
+</html>

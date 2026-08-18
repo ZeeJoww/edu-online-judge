@@ -5,6 +5,9 @@ on:
     branches: [main, master]
     paths:
       - docs/**
+      - demo/**
+      - public/**
+      - scripts/build-pages-demo.js
       - .github/workflows/pages.yml
   workflow_dispatch:
 
@@ -26,6 +29,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/configure-pages@v5
+      - name: Build student demo
+        run: node scripts/build-pages-demo.js
       - uses: actions/upload-pages-artifact@v3
         with:
           path: docs

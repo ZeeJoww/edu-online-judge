@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>我的错题本 - TGBOJ</title>
+<link rel="stylesheet" href="style.css">
+<script>window.GATE_REQUIRED = true;</script>
+<script src="gate.js"></script>
+<script src="demo-mock.js"></script>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <div class="toolbar"><h2 style="margin:0">📕 我的错题本</h2><span class="sub" id="tip">加载中…</span></div>
+    <p class="sub" style="margin:4px 0 12px;">所有提交过的题目，按最近提交排序；满分 100 的题目自动归入「✅ 已解决」。未满分（含考试期间未公布成绩时显示的占位分）的题目留在这里继续订正。</p>
+    <h3 style="margin:10px 0 6px;">✏️ 待订正 <span class="sub" id="todoCnt"></span></h3>
+    <table><thead><tr><th>编号</th><th>题目</th><th>我的最高分</th><th>状态</th><th>提交</th><th>最近提交</th><th></th></tr></thead>
+      <tbody id="todoRows"></tbody></table>
+    <div id="todoEmpty" class="sub" style="display:none; padding:10px 0;"></div>
+    <h3 style="margin:18px 0 6px;">✅ 已解决 <span class="sub" id="doneCnt"></span></h3>
+    <table><thead><tr><th>编号</th><th>题目</th><th>最高分</th><th>提交</th><th>最近提交</th><th></th></tr></thead>
+      <tbody id="doneRows"></tbody></table>
+    <div id="doneEmpty" class="sub" style="display:none; padding:10px 0;"></div>
+  </div>
+</div>
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const fmt = (t) => t ? new Date(t).toLocaleString('zh-CN', { hour12:false }) : '—';
+const scoreCls = (s) => s == null ? 'sub' : (s >= 100 ? 'btn-ok' : s >= 60 ? 'btn-warn' : 'btn-danger');
+(async () => {
+  const me = (await (await fetch('api/auth/me')).json()).user;
+  if (!me) { location.href = 'index.html'; return; }
+  const d = await (await fetch('api/myproblems')).json();
+  const list = d.problems || [];
+  const todo = list.filter((p) => !p.ac);
+  const done = list.filter((p) => p.ac);
+  $('tip').textContent = `共 ${list.length} 道提交过的题`;
+  $('todoCnt').textContent = `(${todo.length})`;
+  $('doneCnt').textContent = `(${done.length})`;
+  const rowTodo = (p) => `<tr><td><b>${p.id}</b></td>
+    <td>${esc(p.title)}${(p.tags || []).map((t) => ' <span class="badge">' + esc(t) + '</span>').join('')}${p.judgeable === false ? ' <span class="badge">仅题面</span>' : ''}</td>
+    <td><b class="${scoreCls(p.bestScore)}">${p.bestScore == null ? '—' : p.bestScore}</b>${p.bestScore == null ? '' : '<span class="sub"> /100</span>'}</td>
+    <td>${esc(p.verdict || (p.bestScore == null ? '评测中' : '—'))}</td>
+    <td>${p.tries}</td><td class="sub">${fmt(p.lastAt)}</td>
+    <td style="text-align:right; white-space:nowrap;"><a class="btn-link" href="problem.html?id=${p.id}">去订正 →</a>${p.lastSubId ? ` <a class="btn-link" href="status.html#sub${p.lastSubId}">最近提交</a>` : ''}</td></tr>`;
+  const rowDone = (p) => `<tr><td><b>${p.id}</b></td>
+    <td>${esc(p.title)}${(p.tags || []).map((t) => ' <span class="badge">' + esc(t) + '</span>').join('')}</td>
+    <td><b class="btn-ok">100</b><span class="sub"> /100</span></td>
+    <td>${p.tries}</td><td class="sub">${fmt(p.lastAt)}</td>
+    <td style="text-align:right; white-space:nowrap;"><a class="btn-link" href="problem.html?id=${p.id}">回顾 →</a></td></tr>`;
+  $('todoRows').innerHTML = todo.map(rowTodo).join('');
+  $('doneRows').innerHTML = done.map(rowDone).join('');
+  $('todoEmpty').style.display = todo.length ? 'none' : 'block';
+  $('doneEmpty').style.display = done.length ? 'none' : 'block';
+  $('todoEmpty').textContent = '🎉 没有待订正的题目：提交过的题都满分了。';
+  $('doneEmpty').textContent = '还没有满分的题目，继续加油。';
+})();
+</script>
+</body>
+</html>

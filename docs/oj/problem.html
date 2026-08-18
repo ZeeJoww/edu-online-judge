@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>题目 - TGBOJ</title>
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="vendor/katex/dist/katex.min.css">
+<script src="vendor/katex/dist/katex.min.js"></script>
+<script src="vendor/katex/dist/contrib/auto-render.min.js"></script>
+<link rel="stylesheet" href="vendor/codemirror/codemirror.css">
+<link rel="stylesheet" href="vendor/codemirror/theme/monokai.css">
+<script src="vendor/codemirror/codemirror.js"></script>
+<script src="vendor/codemirror/mode/clike.js"></script>
+<script src="vendor/codemirror/mode/python.js"></script>
+<script src="vendor/codemirror/addon/edit/matchbrackets.js"></script>
+<script src="vendor/codemirror/addon/edit/closebrackets.js"></script>
+<script src="vendor/codemirror/addon/selection/active-line.js"></script>
+<script>window.GATE_REQUIRED = false;</script>
+<script src="gate.js"></script>
+<script src="demo-mock.js"></script>
+</head>
+<body>
+<div class="wrap">
+  <div class="card problem" id="problemArea"><h1>加载中…</h1></div>
+  <div class="card" id="mySubsCard" style="display:none;">
+    <div class="toolbar"><h2 style="margin:0">我的提交</h2><span class="sub" id="myBest"></span></div>
+    <div id="mySubs" style="font-size:13px;"></div>
+  </div>
+</div>
+
+<!-- 交题对话框 -->
+<div class="modal-mask" id="submitMask"><div class="modal" id="submitModal">
+  <h3>交题</h3>
+    <label>语言（编译参数固定为 -O2 优化，定义 ONLINE_JUDGE 宏）</label>
+  <select id="std">
+    <option value="c11">C (gcc -std=c11 -O2)</option>
+    <option value="c++14">C++14 (g++ -std=c++14 -O2)</option>
+    <option value="c++17" selected>C++17 (g++ -std=c++17 -O2)</option>
+    <option value="c++20">C++20 (g++ -std=c++20 -O2)</option>
+    <option value="gnu++14">GNU++14 (g++ -std=gnu++14 -O2，含 GNU 扩展)</option>
+    <option value="gnu++17">GNU++17 (g++ -std=gnu++17 -O2，含 GNU 扩展)</option>
+    <option value="gnu++20">GNU++20 (g++ -std=gnu++20 -O2，含 GNU 扩展)</option>
+    <option value="python3">Python3 (python3，时空限制与 C++ 一致)</option>
+  </select>
+  <label style="display:flex; align-items:center; gap:6px; font-weight:400; margin-top:8px;">
+    <input type="checkbox" id="cmToggle" style="width:auto; flex:none;"> 代码编辑器
+  </label>
+  <label>代码</label>
+  <textarea id="code" placeholder="#include &lt;bits/stdc++.h&gt;&#10;using namespace std;&#10;int main() { ... }" style="min-height:260px"></textarea>
+  <div class="err" id="err"></div>
+  <div class="actions">
+    <button id="doSubmit">提交评测</button>
+    <button class="secondary" onclick="closeSubmit()">取消</button>
+  </div>
+</div></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+// 代码编辑器：CodeMirror 5（MIT，vendor 本地化）：行号/语法高亮/括号匹配与补全/当前行
+// 默认开启；用户可在交题框取消勾选关闭（textarea 直接输入），偏好存 localStorage
+let cmEditor = null;
+function initEditor() {
+  if (!window.CodeMirror || cmEditor) return;
+  cmEditor = CodeMirror.fromTextArea($('code'), {
+    lineNumbers: true,
+    mode: 'text/x-c++src',
+    theme: (localStorage.getItem('tgboj_theme') === 'dark') ? 'monokai' : 'default',
+    matchBrackets: true,
+    autoCloseBrackets: true,
+    styleActiveLine: true,
+    indentUnit: 4,
+    tabSize: 4,
+    indentWithTabs: false,
+    lineWrapping: false,
+    extraKeys: { 'Tab': function(cm) { cm.replaceSelection('    ', 'end'); } },
+  });
+  if (cmEditor) cmEditor.setOption('mode', $('std').value === 'python3' ? 'python' : 'text/x-c++src');
+}
+function destroyEditor() {
+  if (cmEditor) { cmEditor.toTextArea(); cmEditor = null; }
+  const ta = $('code');
+  if (ta) ta.style.display = ''; // toTextArea 已恢复，这里兜底确保 textarea 可见
+}
+// CodeMirror 在容器刚显示时初始化/刷新可能量到 0 宽度，导致行号与代码重叠；
+// 延迟到下一帧/下一轮事件循环再 refresh 一次，确保 gutter 宽度正确。
+function refreshEditorLater() {
+  setTimeout(function () { if (cmEditor) cmEditor.refresh(); }, 0);
+  if (window.requestAnimationFrame) requestAnimationFrame(function () { if (cmEditor) cmEditor.refresh(); });
+}
+function applyCmToggle() {
+  const on = $('cmToggle').checked;
+  if (on) { initEditor(); refreshEditorLater(); }
+  else destroyEditor();
+  try { localStorage.setItem('tgboj_codemirror', on ? '1' : '0'); } catch (e) { /* 忽略 */ }
+}
+$('cmToggle').addEventListener('change', applyCmToggle);
+$('std').addEventListener('change', function () {
+  if (cmEditor) cmEditor.setOption('mode', $('std').value === 'python3' ? 'python' : 'text/x-c++src');
+});
+// 恢复用户偏好（默认开启；打开交题框时再初始化，避免在隐藏容器里初始化 CodeMirror）
+try {
+  const saved = localStorage.getItem('tgboj_codemirror');
+  $('cmToggle').checked = saved === null ? true : saved === '1';
+} catch (e) { $('cmToggle').checked = true; }
+const fmtTime = (t) => t ? new Date(t).toLocaleString('zh-CN', { hour12:false }) : '';
+const esc = (s) => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+let currentProblem = null;
+let currentTestCount = 0;
+const pid = new URLSearchParams(location.search).get('id') || '';
+
+fetch('api/problem?id=' + encodeURIComponent(pid)).then(r => r.json()).then(d => {
+  if (d.error) { $('problemArea').innerHTML = '<h1>题目不存在</h1><p class="sub">' + esc(d.error) + '</p>'; return; }
+  currentProblem = d.id; // 题目 id（警示区/我的提交都用它）
+  // 记录打开（登录用户）：用于「提示更新」通知
+  fetch('api/problem/view', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ problemId: d.id }) }).catch(() => { });
+  currentTestCount = d.testCount || 0;
+  document.title = d.title + ' - TGBOJ';
+  const area = $('problemArea');
+  // 模考横幅：考试进行中/已结束（订正）时提示提交归属与成绩公布
+  let examBanner = '';
+  if (d.examInfo) {
+    const e = d.examInfo;
+    const tf = (t) => new Date(t).toLocaleString('zh-CN', { hour12: false });
+    let msg = '';
+    if (e.status === 'upcoming') msg = '模考「' + e.name + '」将于 ' + tf(e.startAt) + ' 开始';
+    else if (e.status === 'running') msg = '模考「' + e.name + '」进行中：你的提交将自动计入模考成绩' + (e.hideVerdict ? '，考试期间不公布评测结果' : '');
+    else if (!e.published) msg = '模考「' + e.name + '」已结束：现在提交为订正（不影响模考成绩），成绩将于 ' + tf(e.publishAt) + ' 公布';
+    else msg = '模考「' + e.name + '」成绩已公布：现在提交为订正（不影响模考成绩）';
+    examBanner = '<div style="margin:0 0 12px; padding:10px 14px; border:1px solid var(--accent); border-left:4px solid var(--accent); border-radius:8px; background:var(--btn2); font-size:13px;">📅 ' +
+      esc(msg) + ' · <a class="btn-link" style="padding:2px 10px; font-size:12px;" href="exam.html?id=' + e.id + '">查看模考</a></div>';
+  }
+  // 子任务分值展示（OI 部分分题）
+  const subtaskMeta = (d.scoring && d.scoring.mode === 'subtask' && d.scoring.subtasks && d.scoring.subtasks.length)
+    ? '<br>子任务分值：' + d.scoring.subtasks.map((s) => s.score).join(' / ') + '（共 ' + d.scoring.subtasks.length + ' 个子任务）'
+    : '';
+  area.innerHTML = examBanner + '<div class="problem-head">' +
+    '<div class="ph-title-row"><div class="ph-title">#' + d.id + ' ' + esc(d.title) + '</div>' +
+    '<div style="display:flex; gap:8px; align-items:center;">' +
+    '<a class="btn-link" style="background:var(--btn2); color:var(--text);" href="status.html?problem=' + d.id + '">评测状态</a>' +
+    '<button id="submitBtn">📝 交题</button></div></div>' +
+    '<div class="ph-meta">' + (d.judgeable
+      ? '时间限制：' + Math.round(d.timeLimitSec * 1000) + ' ms<br>空间限制：' + Math.round(d.memLimitKb / 1024) + ' MB' + subtaskMeta
+      : '仅提供题面，未开放提交') + '</div></div>' +
+    d.html;
+  // 交题按钮：仅题面题目禁用并提示
+  const sb = $('submitBtn');
+  sb.disabled = !d.judgeable;
+  sb.title = d.judgeable ? '' : '未开放提交';
+  sb.style.opacity = d.judgeable ? '' : '0.5';
+  sb.addEventListener('click', function () { gateEnsureLogin(function () { openSubmit(); }); });
+  // 渲染 LaTeX 数学公式
+  if (window.renderMathInElement) {
+    setTimeout(function () {
+      try {
+        renderMathInElement(area, {
+          delimiters: [
+            { left: '$$', right: '$$', display: true },
+            { left: '$', right: '$', display: false }
+          ],
+          throwOnError: false
+        });
+      } catch (e) { /* 渲染失败不影响页面 */ }
+    }, 30);
+  }
+  let sampleBox = null;
+  if (d.samples && d.samples.length) {
+    const box = document.createElement('div');
+    box.innerHTML = `<h2 style="font-size:17px; margin:20px 0 8px; border-left:4px solid var(--accent); padding-left:10px;">样例</h2>` +
+      d.samples.map((s, idx) => `<div style="margin:10px 0;">
+        <div class="sub" style="margin-bottom:4px; font-weight:bold;">${d.samples.length > 1 ? '样例 ' + s.id : ''}</div>
+        <div style="display:flex; gap:20px; flex-wrap:wrap;">
+          <div style="flex:1; min-width:280px;">
+            <div class="sample-head">样例输入 <button class="cp-btn cp-ico" onclick="copySample('in','${s.id}',this)" title="复制"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><rect x="9" y="9" width="11" height="11" rx="2"><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button></div>
+            <pre class="sample-box" id="sample-${s.id}-in">${esc(s.input)}</pre>
+          </div>
+          <div style="flex:1; min-width:280px;">
+            <div class="sample-head">样例输出 <button class="cp-btn cp-ico" onclick="copySample('out','${s.id}',this)" title="复制"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><rect x="9" y="9" width="11" height="11" rx="2"><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button></div>
+            <pre class="sample-box" id="sample-${s.id}-out">${esc(s.output)}</pre>
+          </div>
+        </div>
+      </div>`).join('');
+    area.appendChild(box);
+    sampleBox = box;
+  } else if (d.sampleInput) {
+    const box = document.createElement('div');
+    box.innerHTML = `<h2 style="font-size:17px; margin:20px 0 8px; border-left:4px solid var(--accent); padding-left:10px;">样例</h2>
+      <div style="display:flex; gap:20px; flex-wrap:wrap;">
+        <div style="flex:1; min-width:280px;">
+          <div class="sample-head">样例输入 <button class="cp-btn cp-ico" onclick="copySample('in',null,this)" title="复制"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><rect x="9" y="9" width="11" height="11" rx="2"><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button></div>
+          <pre class="sample-box" id="sample-in">${esc(d.sampleInput)}</pre>
+        </div>
+        <div style="flex:1; min-width:280px;">
+          <div class="sample-head">样例输出 <button class="cp-btn cp-ico" onclick="copySample('out',null,this)" title="复制"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><rect x="9" y="9" width="11" height="11" rx="2"><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button></div>
+          <pre class="sample-box" id="sample-out">${esc(d.sampleOutput)}</pre>
+        </div>
+      </div>`;
+    area.appendChild(box);
+    sampleBox = box;
+  }
+  // 【提示】板块移到样例区之后（无样例时保留在正文末尾）
+  if (sampleBox) {
+    // 【提示】/【做法】板块移到样例区之后（无样例时保留在正文末尾）；支持多个【提示N】板块
+    // 依次插入到前一个板块之后，保持 1、2、3… 顺序
+    const hints = area.querySelectorAll('.md-hint, .md-sol');
+    let last = sampleBox;
+    for (const hint of hints) {
+      last.after(hint);
+      last = hint;
+    }
+  }
+  $('mySubsCard').style.display = '';
+  loadMySubs();
+  window.addEventListener('tgboj:auth', loadMySubs);
+  // 警示后人之后渲染「题解」与「参考代码」
+  loadWarnings(area).then(() => renderSolRef(area, d));
+}).catch(() => { $('problemArea').innerHTML = '<h1>加载失败</h1>'; });
+
+// ---- 警示后人（学生交流区）----
+let curWarnMine = [];
+async function loadWarnings(area) {
+  const r = await fetch('api/warnings?problem=' + encodeURIComponent(currentProblem));
+  if (!r.ok) return;
+  const d = await r.json();
+  curWarnMine = d.mine || [];
+  window.__warnVisibleList = d.list || [];
+  const box = document.createElement('div');
+  box.id = 'warnBox';
+  const list = d.list || [];
+  const empty = !list.length;
+  // 点击展开（类似【提示】板块）：默认收起，展开后显示警示列表与写警示按钮
+  // 无任何警示时整栏灰底且自动展开（warn-empty + open）
+  let html = `<details class="warn-fold${empty ? ' warn-empty' : ''}"${empty ? ' open' : ''}><summary>⚠️ 警示后人</summary><div class="warn-body">`;
+  if (empty) html += `<p class="sub" style="margin:6px 0;">还没有人留下警示，你可以是第一个。</p>`;
+  for (const w of list) {
+    html += renderWarn(w, false);
+  }
+  const myVis = (d.mine || []).filter((x) => x.visible);
+  const myHid = (d.mine || []).filter((x) => !x.visible);
+  if (myHid.length) {
+    html += `<p class="sub" style="margin:8px 0 4px;">以下是你已隐藏的警示（仅自己可见）：</p>`;
+    for (const w of myHid) html += renderWarn(w, true);
+  }
+  html += `<div style="margin-top:10px;"><button class="secondary" style="padding:4px 14px; font-size:12px;" onclick="openWarnEdit()">✍️ 写警示</button></div>`;
+  html += '</div></details>';
+  box.innerHTML = html;
+  area.parentNode.appendChild(box); // 追加到页面最底部（我的提交卡片之后）
+}
+function renderWarn(w, mine) {
+  let h = `<div style="margin:8px 0; padding:8px 10px; border:1px solid var(--line); border-radius:6px; background:var(--bg);">
+    <div style="font-size:12px; color:var(--muted);">${esc(w.fullname)} · ${new Date(w.updatedAt || w.createdAt).toLocaleString('zh-CN', { hour12: false })}${w.updatedAt && w.updatedAt !== w.createdAt ? '（已更新）' : ''}</div>
+    <div style="margin-top:4px; white-space:pre-wrap;">${esc(w.text)}</div>`;
+  if (w.sampleIn || w.sampleOut) {
+    h += `<div style="margin-top:8px; display:flex; gap:10px; flex-wrap:wrap;">
+      ${w.sampleIn ? `<div style="flex:1; min-width:220px;"><div class="sample-head">示例输入 <button class="cp-btn cp-ico" onclick="copyWarnIn(this,${w.id})" title="复制"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><rect x="9" y="9" width="11" height="11" rx="2"><path d="M5 15V5a2 2 0 0 1 2-2h10"></svg></button></div><pre class="sample-box warn-sample" id="warn-in-${w.id}">${esc(w.sampleIn)}</pre></div>` : ''}
+      ${w.sampleOut ? `<div style="flex:1; min-width:220px;"><div class="sample-head">示例输出 <button class="cp-btn cp-ico" onclick="copyWarnOut(this,${w.id})" title="复制"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><rect x="9" y="9" width="11" height="11" rx="2"><path d="M5 15V5a2 2 0 0 1 2-2h10"></svg></button></div><pre class="sample-box warn-sample" id="warn-out-${w.id}">${esc(w.sampleOut)}</pre></div>` : ''}
+    </div>`;
+  }
+  const actions = [];
+  if (mine) actions.push(`<button class="secondary" style="padding:3px 10px; font-size:12px;" onclick="toggleWarn()">${w.visible ? '隐藏' : '公开'}</button>`);
+  if (w.history && w.history.length) actions.push(`<button class="secondary" style="padding:3px 10px; font-size:12px;" onclick="showWarnHist(${w.id})">查看历史（${w.history.length}）</button>`);
+  if (actions.length) h += `<div style="margin-top:8px; text-align:right;">${actions.join(' ')}</div>`;
+  return h + `</div>`;
+}
+let curWarnHist = [];
+function showWarnHist(id) {
+  const all = curWarnMine.concat(window.__warnVisibleList || []);
+  const w = all.find((x) => x.id === id);
+  if (!w || !w.history || !w.history.length) return;
+  curWarnHist = w.history;
+  $('warnHistList').innerHTML = w.history.map((v, i) => `<div style="margin:8px 0; padding:8px 10px; border:1px solid var(--line); border-radius:6px;">
+    <div class="sub" style="font-size:12px;">版本 ${i + 1} · ${new Date(v.updatedAt).toLocaleString('zh-CN', { hour12: false })}</div>
+    <div style="margin-top:4px; white-space:pre-wrap;">${esc(v.text)}</div>
+    ${(v.sampleIn || v.sampleOut) ? `<div style="margin-top:6px; display:flex; gap:8px; flex-wrap:wrap;">
+      ${v.sampleIn ? `<div><span class="sub">输入：</span><pre class="sample-box warn-sample" style="margin:4px 0;">${esc(v.sampleIn)}</pre></div>` : ''}
+      ${v.sampleOut ? `<div><span class="sub">输出：</span><pre class="sample-box warn-sample" style="margin:4px 0;">${esc(v.sampleOut)}</pre></div>` : ''}
+    </div>` : ''}
+  </div>`).join('');
+  $('warnHistMask').classList.add('open');
+}
+// ---- 题解 + 参考代码（警示后人之后；管理员可编辑）----
+const REF_KW = {
+  cpp: 'alignas alignof and asm auto bitand bitor bool break case catch char class const constexpr continue default delete do double else enum explicit export extern false float for friend goto if inline int long mutable namespace new noexcept not nullptr operator or private protected public register reinterpret_cast return short signed sizeof static struct switch template this throw true try typedef typeid typename union unsigned using virtual void volatile wchar_t while',
+  py: 'False None True and as assert async await break class continue def del elif else except finally for from global if import in is lambda nonlocal not or pass raise return try while with yield',
+};
+function highlightCode(code, lang) {
+  const kw = (REF_KW[lang] || '').split(/\s+/).filter(Boolean);
+  const kwRe = new RegExp('\\b(' + kw.join('|') + ')\\b', 'g');
+  let h = esc(code);
+  // 占位符法：注释/字符串/数字先替换为占位符（\u0001aN\u0001，字母前缀避免被数字/关键字正则误伤），最后迭代还原
+  const ph = [];
+  const PH = (s) => { ph.push(s); return '\u0001a' + (ph.length - 1) + '\u0001'; };
+  if (lang === 'py') h = h.replace(/(#[^\n]*)/g, (m) => PH('<span class="tok-cm">' + m + '</span>'));
+  else h = h.replace(/(\/\/[^\n]*|\/\*[\s\S]*?\*\/)/g, (m) => PH('<span class="tok-cm">' + m + '</span>'));
+  h = h.replace(/("(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*')/g, (m) => PH('<span class="tok-st">' + m + '</span>'));
+  h = h.replace(/\b(\d[\d_]*\.?[\d_]*)\b/g, (m) => PH('<span class="tok-num">' + m + '</span>'));
+  h = h.replace(kwRe, '<span class="tok-kw">$1</span>');
+  if (lang === 'cpp') h = h.replace(/(#\w+)/g, '<span class="tok-pre">$1</span>');
+  // 迭代还原（字符串/注释内部可能嵌套了数字占位符，需多轮展开）
+  let guard = 0;
+  while (h.indexOf('\u0001') !== -1 && guard++ < 50) {
+    h = h.replace(/\u0001a(\d+)\u0001/g, (m, i) => ph[parseInt(i, 10)]);
+  }
+  return h;
+}
+const escAttr = (s) => esc(s).replace(/"/g, '&quot;');
+// 题解 tab 切换（多份）
+window.showSolTab = function (i) {
+  const data = window.__solData || [];
+  if (!data[i]) return;
+  const body = document.getElementById('solBody');
+  if (!body) return;
+  body.innerHTML = data[i].html;
+  if (window.renderMathInElement) {
+    try { renderMathInElement(body, { delimiters: [{ left: '$$', right: '$$', display: true }, { left: '$', right: '$', display: false }], throwOnError: false }); }
+    catch (e) { /* 忽略 */ }
+  }
+  const tabs = document.querySelectorAll('#solTabs .ref-tab');
+  tabs.forEach((b, idx) => b.classList.toggle('on', idx === i));
+};
+// 参考代码 tab 切换（多份，按 lang 高亮）
+window.showRefTab = function (i) {
+  const data = window.__refData || [];
+  if (!data[i]) return;
+  const box = document.getElementById('refCodeBox');
+  if (!box) return;
+  box.innerHTML = highlightCode(data[i].code || '', data[i].lang || 'cpp');
+  const tabs = document.querySelectorAll('#refTabs .ref-tab');
+  tabs.forEach((b, idx) => b.classList.toggle('on', idx === i));
+};
+async function renderSolRef(area, d) {
+  let me = null;
+  try { me = (await (await fetch('api/auth/me')).json()).user; } catch (e) { me = null; }
+  const isAdminView = !!(me && (me.role === 'admin' || me.role === 'superadmin') && (localStorage.getItem('tgboj_mode') !== 'user'));
+  const sols = d.solutions || [];
+  const refs = d.references || [];
+  const solHas = sols.length > 0;
+  const refHas = refs.length > 0;
+  // 非管理员：无内容不显示；管理员：页面最底部始终提供编辑入口
+  if (!isAdminView && !solHas && !refHas) return;
+  window.__solData = sols;
+  window.__refData = refs;
+  const wrap = document.createElement('div');
+  let html = '';
+  if (solHas || isAdminView) {
+    html += `<details class="md-sol" id="solFold"><summary>题解` +
+      (isAdminView ? ` <button class="secondary" style="padding:2px 10px; font-size:12px; margin-left:8px; vertical-align:middle;" onclick="event.stopPropagation();editSolModal()">📝 编辑题解</button>` : '') +
+      `</summary><div class="hint-body">`;
+    if (solHas) {
+      html += `<div class="ref-tabs" id="solTabs">${sols.map((s, i) => `<button class="ref-tab${i === 0 ? ' on' : ''}" onclick="showSolTab(${i})">${escAttr(s.name)}</button>`).join('')}</div>` +
+        `<div id="solBody">${sols[0].html}</div>`;
+    } else {
+      html += `<p class="sub" style="margin:6px 0;">暂无题解，点击「编辑题解」添加。</p>`;
+    }
+    html += `</div></details>`;
+  }
+  if (refHas || isAdminView) {
+    html += `<details class="md-sol" id="refFold"><summary>参考代码` +
+      (isAdminView ? ` <button class="secondary" style="padding:2px 10px; font-size:12px; margin-left:8px; vertical-align:middle;" onclick="event.stopPropagation();editRefModal()">📝 编辑参考代码</button>` : '') +
+      `</summary><div class="hint-body">`;
+    if (refHas) {
+      html += `<div class="ref-tabs" id="refTabs">${refs.map((x, i) => `<button class="ref-tab${i === 0 ? ' on' : ''}" onclick="showRefTab(${i})">${escAttr(x.name)}</button>`).join('')}</div>` +
+        `<pre class="ref-code"><code id="refCodeBox"></code></pre>`;
+    } else {
+      html += `<p class="sub" style="margin:6px 0;">暂无参考代码，点击「编辑参考代码」添加。</p>`;
+    }
+    html += `</div></details>`;
+  }
+  wrap.innerHTML = html;
+  // 追加到页面最底部（我的提交卡片、警示后人之后）
+  area.parentNode.appendChild(wrap);
+  if (refHas) showRefTab(0);
+  if (solHas && window.renderMathInElement) {
+    const solBody = document.getElementById('solBody');
+    if (solBody) setTimeout(function () {
+      try { renderMathInElement(solBody, { delimiters: [{ left: '$$', right: '$$', display: true }, { left: '$', right: '$', display: false }], throwOnError: false }); }
+      catch (e) { /* 忽略 */ }
+    }, 30);
+  }
+}
+// ---- 题解多份编辑 ----
+window.editSolModal = function () {
+  const data = (window.__solData || []).map((s) => ({ name: s.name, content: s.content }));
+  window.__solEdit = data;
+  const mask = document.createElement('div');
+  mask.className = 'modal-mask open';
+  mask.id = 'solMask';
+  mask.innerHTML = `<div class="modal"><h3>📝 编辑题解（#${currentProblem}）</h3>
+    <div id="solEditList"></div>
+    <div style="margin:10px 0;"><button class="secondary" onclick="addSolEdit()">＋ 添加题解</button></div>
+    <div class="actions"><button onclick="saveSol()">保存</button><button class="secondary" onclick="document.getElementById('solMask').remove()">取消</button></div></div>`;
+  document.body.appendChild(mask);
+  renderSolEditList();
+};
+window.renderSolEditList = function () {
+  const list = window.__solEdit || [];
+  document.getElementById('solEditList').innerHTML = list.map((s, i) => `<div style="border:1px solid var(--line); border-radius:8px; padding:10px; margin:8px 0;">
+    <div style="display:flex; gap:8px; align-items:center; margin-bottom:6px;">
+      <input id="seName${i}" placeholder="题解名称（如：KMP 做法）" value="${escAttr(s.name)}" style="flex:1;">
+      <button class="secondary" style="padding:2px 10px; font-size:12px;" onclick="delSolEdit(${i})">删除</button>
+    </div>
+    <textarea id="seContent${i}" placeholder="题解内容（Markdown）" style="width:100%; min-height:120px; box-sizing:border-box; 'Monaco','Menlo','Consolas','Courier New',monospace; font-size:13px;">${esc(s.content)}</textarea>
+  </div>`).join('');
+};
+window.addSolEdit = function () { window.__solEdit.push({ name: '', content: '' }); renderSolEditList(); };
+window.delSolEdit = function (i) { window.__solEdit.splice(i, 1); renderSolEditList(); };
+window.saveSol = async function () {
+  const list = (window.__solEdit || []).map((s, i) => ({
+    name: document.getElementById('seName' + i).value,
+    content: document.getElementById('seContent' + i).value,
+  })).filter((s) => s.content.trim());
+  const r = await fetch('api/admin/solutions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ problemId: currentProblem, list }) });
+  const d = await r.json();
+  if (!r.ok) { alert(d.error || '保存失败'); return; }
+  location.reload();
+};
+// ---- 参考代码多份编辑 ----
+window.editRefModal = function () {
+  const data = (window.__refData || []).map((x) => ({ name: x.name, lang: x.lang, code: x.code }));
+  window.__refEdit = data;
+  const mask = document.createElement('div');
+  mask.className = 'modal-mask open';
+  mask.id = 'refMask';
+  mask.innerHTML = `<div class="modal"><h3>📝 编辑参考代码（#${currentProblem}）</h3>
+    <div id="refEditList"></div>
+    <div style="margin:10px 0;"><button class="secondary" onclick="addRefEdit()">＋ 添加参考代码</button></div>
+    <div class="actions"><button onclick="saveRef()">保存</button><button class="secondary" onclick="document.getElementById('refMask').remove()">取消</button></div></div>`;
+  document.body.appendChild(mask);
+  renderRefEditList();
+};
+window.renderRefEditList = function () {
+  const list = window.__refEdit || [];
+  document.getElementById('refEditList').innerHTML = list.map((x, i) => `<div style="border:1px solid var(--line); border-radius:8px; padding:10px; margin:8px 0;">
+    <div style="display:flex; gap:8px; align-items:center; margin-bottom:6px;">
+      <input id="reName${i}" placeholder="名称（如：C++ 标程）" value="${escAttr(x.name)}" style="flex:1;">
+      <select id="reLang${i}"><option value="cpp"${x.lang === 'cpp' ? ' selected' : ''}>C++</option><option value="py"${x.lang === 'py' ? ' selected' : ''}>Python</option></select>
+      <button class="secondary" style="padding:2px 10px; font-size:12px;" onclick="delRefEdit(${i})">删除</button>
+    </div>
+    <textarea id="reCode${i}" placeholder="参考代码" style="width:100%; min-height:140px; box-sizing:border-box; font-family:'Monaco','Menlo','Consolas','Courier New',monospace; font-size:13px;">${esc(x.code)}</textarea>
+  </div>`).join('');
+};
+window.addRefEdit = function () { window.__refEdit.push({ name: '', lang: 'cpp', code: '' }); renderRefEditList(); };
+window.delRefEdit = function (i) { window.__refEdit.splice(i, 1); renderRefEditList(); };
+window.saveRef = async function () {
+  const list = (window.__refEdit || []).map((x, i) => ({
+    name: document.getElementById('reName' + i).value,
+    lang: document.getElementById('reLang' + i).value,
+    code: document.getElementById('reCode' + i).value,
+  })).filter((x) => x.code.trim());
+  const r = await fetch('api/admin/references', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ problemId: currentProblem, list }) });
+  const d = await r.json();
+  if (!r.ok) { alert(d.error || '保存失败'); return; }
+  location.reload();
+};
+function copyWarnIn(btn, id) { const old = btn.innerHTML; btn.innerHTML = '✓'; copyText(document.getElementById('warn-in-' + id).textContent, () => setTimeout(() => btn.innerHTML = old, 1200)); }
+function copyWarnOut(btn, id) { const old = btn.innerHTML; btn.innerHTML = '✓'; copyText(document.getElementById('warn-out-' + id).textContent, () => setTimeout(() => btn.innerHTML = old, 1200)); }
+function openWarnEdit() {
+  const m = curWarnMine.length ? curWarnMine[0] : { text: '', sampleIn: '', sampleOut: '' };
+  $('weText').value = m.text || '';
+  $('weIn').value = m.sampleIn || '';
+  $('weOut').value = m.sampleOut || '';
+  $('warnMask').classList.add('open');
+}
+async function saveWarn() {
+  const r = await fetch('api/warning', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ problemId: currentProblem, text: $('weText').value, sampleIn: $('weIn').value, sampleOut: $('weOut').value }) });
+  const d = await r.json();
+  if (!r.ok) { alert(d.error || '保存失败'); return; }
+  $('warnMask').classList.remove('open');
+  const box = $('warnBox');
+  box.parentNode.removeChild(box);
+  loadWarnings($('problemArea'));
+}
+async function toggleWarn() {
+  const r = await fetch('api/warning/toggle', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ problemId: currentProblem }) });
+  if (!r.ok) { const d = await r.json().catch(() => ({})); alert(d.error || '操作失败'); return; }
+  const box = $('warnBox');
+  box.parentNode.removeChild(box);
+  loadWarnings($('problemArea'));
+}
+
+function copySample(kind, sid, btn) {
+  const el = document.getElementById('sample-' + (sid || '1') + '-' + kind) || document.getElementById('sample-' + kind);
+  if (!el) return;
+  const txt = el.textContent;
+  const b = btn && btn.tagName === 'BUTTON' ? btn : null;
+  const old = b ? b.innerHTML : '';
+  const done = () => { if (!b) return; b.innerHTML = '✓'; setTimeout(() => b.innerHTML = old, 1200); };
+  copyText(txt, done);
+}
+async function loadMySubs() {
+  const box = $('mySubs');
+  if (!box) return;
+  let me = null;
+  try { me = (await (await fetch('api/auth/me')).json()).user; } catch (e) { /* 忽略 */ }
+  if (!me || !currentProblem) { box.innerHTML = '<p class="sub">登录后可查看你的提交与最高分</p>'; $('myBest').textContent = ''; return; }
+  let d;
+  try { d = await (await fetch(`api/status?user=${encodeURIComponent(me.username)}&problem=${encodeURIComponent(pid)}`)).json(); } catch (e) { box.innerHTML = '<p class="sub">加载失败</p>'; return; }
+  const total = currentTestCount || 0;
+  let best = 0, hiddenCnt = 0;
+  for (const s of d.list) {
+    if (s.verdictHidden) { hiddenCnt++; continue; }
+    let sc = s.score != null ? s.score : (s.summary && s.summary.score != null ? s.summary.score : null);
+    if (sc == null) { // 旧记录回退：按 AC 点数均分
+      const ac = (s.points || []).filter((p) => p.verdict === 'AC' && !/^ex\d*$/i.test(p.id)).length;
+      sc = total > 0 ? Math.round(100 * ac / total) : 0;
+    }
+    if (sc > best) best = sc;
+  }
+  if (hiddenCnt && !best) { $('myBest').textContent = `模考进行中 · 成绩暂不公布 · 共 ${d.list.length} 次提交`; }
+  else { $('myBest').textContent = `最高分 ${best} / 100 · 共 ${d.list.length} 次提交`; }
+  if (!d.list.length) { box.innerHTML = '<p class="sub">还没有提交</p>'; return; }
+  box.innerHTML = d.list.map((s) => {
+    let v;
+    if (s.verdictHidden) v = '<span class="v-run">已评测 · 暂不公布</span>';
+    else if (s.summary && s.summary.verdict === 'AC') v = '<span class="v-ac">AC</span>';
+    else if (s.summary && s.summary.verdict === 'CE') v = '<span class="v-err">CE</span>';
+    else if (s.summary && s.summary.verdict === 'SE') v = '<span class="v-err">SE</span>';
+    else v = `<span class="v-bad">${esc(s.summary ? (s.score != null && String(s.summary.display) === String(s.score) ? s.score + '分' : s.summary.display) : s.status)}</span>`;
+    return `<div style="display:flex; gap:10px; align-items:center; padding:5px 0; border-bottom:1px solid var(--line);">
+    <span class="sub">#${s.id}</span><span>${v}</span>
+    <span class="sub">${fmtTime(s.submittedAt)}</span>
+    <a class="btn-link" style="padding:2px 10px; font-size:12px; margin-left:auto;" href="status.html?user=${encodeURIComponent(me.username)}&problem=${encodeURIComponent(pid)}">查看代码</a></div>`;
+  }).join('');
+}
+
+function openSubmit() {  if (!currentProblem) { alert('题目加载中，请稍候'); return; }
+    $('err').textContent = '';
+  $('submitMask').classList.add('open');
+  // CodeMirror 需在可见容器中初始化/刷新，打开交题框时处理（并延迟再刷一次，防止行号与代码重叠）
+  if ($('cmToggle').checked) { initEditor(); refreshEditorLater(); }
+}
+function closeSubmit() { $('submitMask').classList.remove('open'); }
+$('submitMask').addEventListener('click', (e) => { if (e.target === $('submitMask')) closeSubmit(); });
+
+$('doSubmit').addEventListener('click', async () => {
+  const err = $('err');
+  err.textContent = '';
+  if (!currentProblem) { err.textContent = '题目加载中，请稍候'; return; }
+  if (cmEditor) cmEditor.save(); // 同步到 textarea（注意：let 声明不在 window 上，不能用 window.cmEditor）
+  const code = $('code').value;
+  const std = $('std').value;
+  if (!code) { err.textContent = '代码不能为空'; return; }
+  $('doSubmit').disabled = true;
+  $('doSubmit').textContent = '提交中…';
+  try {
+    const r = await fetch('api/submit', { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ std, code, problemId: currentProblem }) });
+    const d = await r.json();
+    if (!r.ok) { err.textContent = d.error || '提交失败'; return; }
+    location.href = 'status.html#s' + d.id;
+  } catch (e) { err.textContent = '网络错误: ' + e.message; }
+  finally { $('doSubmit').disabled = false; $('doSubmit').textContent = '提交评测'; }
+});
+</script>
+<!-- 写警示弹窗 -->
+<div class="modal-mask" id="warnMask"><div class="modal" style="max-width:640px;">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+    <b style="font-size:15px;">⚠️ 写警示（警示后人）</b>
+    <span class="modal-x" onclick="document.getElementById('warnMask').classList.remove('open')">✕</span>
+  </div>
+  <div style="margin-bottom:8px;"><label class="sub">警示说明（必填，写你踩过的坑 / 提醒他人）</label>
+    <textarea id="weText" style="min-height:90px; width:100%; margin-top:4px;" placeholder="例如：注意 N 最大到 1e7，不能开 O(N^2) 的数组……"></textarea></div>
+  <div style="display:flex; gap:10px; flex-wrap:wrap;">
+    <div style="flex:1; min-width:250px;"><label class="sub">小样例输入（可选）</label>
+      <textarea id="weIn" style="min-height:70px; width:100%; margin-top:4px;" placeholder="若坑涉及具体数据，粘贴小样例输入"></textarea></div>
+    <div style="flex:1; min-width:250px;"><label class="sub">小样例输出（可选）</label>
+      <textarea id="weOut" style="min-height:70px; width:100%; margin-top:4px;" placeholder="对应输出"></textarea></div>
+  </div>
+  <p class="sub" style="margin:8px 0 0;">每人每题一条警示；发布后可「公开/隐藏」，无法删除。</p>
+  <div style="text-align:right; margin-top:12px;">
+    <button class="secondary" style="margin-right:8px;" onclick="document.getElementById('warnMask').classList.remove('open')">取消</button>
+    <button onclick="saveWarn()">保存</button>
+  </div>
+</div></div>
+<!-- 警示历史版本弹窗 -->
+<div class="modal-mask" id="warnHistMask"><div class="modal" style="max-width:560px;">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+    <b style="font-size:15px;">🕘 警示历史版本</b>
+    <span class="modal-x" onclick="document.getElementById('warnHistMask').classList.remove('open')">✕</span>
+  </div>
+  <div id="warnHistList" style="max-height:60vh; overflow:auto;"></div>
+  <p class="sub" style="margin:8px 0 0;">历史版本仅管理员和发布人可见。</p>
+</div></div>
+</body>
+</html>

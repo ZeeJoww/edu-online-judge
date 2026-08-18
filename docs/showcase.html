@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="TGBOJ GitHub Pages 静态交互演示">
+  <title>TGBOJ · Static Demo</title>
+  <link rel="stylesheet" href="showcase.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#top" aria-label="TGBOJ 首页"><span>T</span>TGBOJ</a>
+    <nav aria-label="演示导航">
+      <a href="#features">功能</a>
+      <a href="#problem">题目</a>
+      <a href="#status">评测</a>
+      <a class="repo-link" href="https://github.com/ZeeJoww/edu-online-judge" target="_blank" rel="noreferrer">项目源码</a>
+    </nav>
+  </header>
+
+  <main id="top">
+    <section class="hero">
+      <div>
+        <p class="eyebrow">LIGHTWEIGHT ONLINE JUDGE</p>
+        <h1>为教学与竞赛而生的<br><em>轻量评测系统</em></h1>
+        <p class="intro">题库、作业、比赛、模考与评测集中于一个无需数据库的 Node.js 应用。</p>
+        <div class="actions">
+          <a class="button primary" href="oj/problems.html">进入学生端 Demo</a>
+          <a class="button secondary" href="https://github.com/ZeeJoww/edu-online-judge" target="_blank" rel="noreferrer">查看 GitHub</a>
+        </div>
+      </div>
+      <aside class="terminal" aria-label="系统运行示意">
+        <div class="terminal-head"><i></i><i></i><i></i><span>judge@tgboj</span></div>
+        <pre><code><b>$</b> node server.js
+<span>✓</span> problems loaded
+<span>✓</span> judge workers ready
+<span>✓</span> listening on :8090
+
+submission <strong>#1024</strong>
+compile  <span>OK</span>
+test 1   <span>AC</span>  7ms / 1.8MB
+test 2   <span>AC</span>  6ms / 1.8MB
+score    <mark>100</mark></code></pre>
+      </aside>
+    </section>
+
+    <section id="features" class="section">
+      <div class="section-title">
+        <p>CORE FEATURES</p>
+        <h2>一套系统，覆盖完整教学流程</h2>
+      </div>
+      <div class="feature-grid">
+        <article><span>01</span><h3>多语言评测</h3><p>C、C++14/17/20 与 Python 3，支持普通测试点和子任务评分。</p></article>
+        <article><span>02</span><h3>教学闭环</h3><p>题库、作业、错题本、通知、私信和课堂大屏协同工作。</p></article>
+        <article><span>03</span><h3>竞赛模式</h3><p>OI、IOI、ACM 赛制，支持封榜、澄清、模考和成绩导出。</p></article>
+        <article><span>04</span><h3>轻量部署</h3><p>单 Node.js 进程、原生前端和 JSON 存储，无 npm 运行依赖。</p></article>
+      </div>
+    </section>
+
+    <section id="problem" class="section demo-section">
+      <div class="section-title">
+        <p>INTERACTIVE DEMO</p>
+        <h2>原创示例题：A + B</h2>
+      </div>
+      <div class="notice"><strong>静态演示</strong>：GitHub Pages 不会编译或执行代码，下方结果由浏览器模拟。</div>
+      <div class="workspace">
+        <article class="problem-card">
+          <div class="problem-meta"><span>#1000</span><span>时间 1s</span><span>内存 256MB</span></div>
+          <h3>A + B</h3>
+          <p>读入两个整数 <code>a</code> 与 <code>b</code>，输出它们的和。</p>
+          <h4>输入格式</h4>
+          <p>一行两个整数，满足 −10<sup>9</sup> ≤ a, b ≤ 10<sup>9</sup>。</p>
+          <h4>输出格式</h4>
+          <p>输出一个整数，表示 a + b。</p>
+          <div class="samples">
+            <div><b>样例输入</b><pre>3 5</pre></div>
+            <div><b>样例输出</b><pre>8</pre></div>
+          </div>
+        </article>
+
+        <article class="submit-card">
+          <div class="editor-head">
+            <label for="language">语言</label>
+            <select id="language">
+              <option value="cpp">GNU C++17</option>
+              <option value="python">Python 3</option>
+            </select>
+          </div>
+          <label class="sr-only" for="source">源代码</label>
+          <textarea id="source" spellcheck="false" aria-label="源代码编辑器"></textarea>
+          <div class="submit-foot">
+            <span id="code-size">0 B</span>
+            <button id="submit" type="button">提交评测</button>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section id="status" class="section status-section" aria-live="polite">
+      <div class="section-title">
+        <p>JUDGE STATUS</p>
+        <h2>模拟评测记录</h2>
+      </div>
+      <div class="status-table">
+        <div class="status-row status-head"><span>编号</span><span>题目</span><span>语言</span><span>结果</span><span>耗时</span><span>得分</span></div>
+        <div id="empty-row" class="empty">提交示例代码后，这里将显示模拟结果。</div>
+        <div id="result-row" class="status-row result" hidden>
+          <span id="result-id">#1</span><span>A + B</span><span id="result-lang">GNU C++17</span><span><b id="verdict" class="pending">Pending</b></span><span id="time">—</span><span id="score">—</span>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <span>TGBOJ Static Demo</span>
+    <span>MIT License · No user code is executed</span>
+  </footer>
+
+  <script src="showcase.js"></script>
+</body>
+</html>
